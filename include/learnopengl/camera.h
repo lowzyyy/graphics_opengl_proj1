@@ -12,13 +12,15 @@ enum Camera_Movement {
     FORWARD,
     BACKWARD,
     LEFT,
-    RIGHT
+    RIGHT,
+    UP,
+    DOWN
 };
 
 // Default camera values
-const float YAW         = -90.0f;
+const float YAW         = 90.0f;
 const float PITCH       =  0.0f;
-const float SPEED       =  2.5f;
+const float SPEED       =  15.0f;
 const float SENSITIVITY =  0.1f;
 const float ZOOM        =  45.0f;
 
@@ -65,7 +67,12 @@ public:
     {
         return glm::lookAt(Position, Position + Front, Up);
     }
-
+//    void setSpeed(const float speed){
+//        this->MovementSpeed = speed;
+//    }
+//    float getSpeed(){
+//        return this->MovementSpeed;
+//    }
     // processes input received from any keyboard-like input system. Accepts input parameter in the form of camera defined ENUM (to abstract it from windowing systems)
     void ProcessKeyboard(Camera_Movement direction, float deltaTime)
     {
@@ -78,6 +85,10 @@ public:
             Position -= Right * velocity;
         if (direction == RIGHT)
             Position += Right * velocity;
+        if(direction == UP)
+            Position += WorldUp * velocity;
+        if(direction == DOWN)
+            Position -= WorldUp * velocity;
     }
 
     // processes input received from a mouse input system. Expects the offset value in both the x and y direction.

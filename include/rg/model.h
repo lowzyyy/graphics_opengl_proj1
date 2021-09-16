@@ -153,6 +153,8 @@ unsigned int TextureFromFile(const char* filename, std::string directory) {
     glGenTextures(1, &textureID);
 
     int width, height, nrComponents;
+    std::cerr<<"PRE STBI LOAD"<<std::endl;
+//    stbi_set_flip_vertically_on_load(true);
     unsigned char* data = stbi_load(fullPath.c_str(), &width, &height, &nrComponents, 0);
     if (data) {
         GLenum format;
