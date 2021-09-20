@@ -12,6 +12,7 @@ public:
     glm::vec4 mPlane;
     unsigned int dudv_texture;
     unsigned int normal_texture;
+    float mDist = 0.02;
     water(float scale,float height,glm::vec4& plane) :mScale(scale),mHeight(height),mPlane(plane){
         float quad_vertices[] = { -1, -1, -1, 1, 1, -1,
                                   1, -1, -1, 1,  1, 1 };
@@ -46,7 +47,9 @@ public:
         waterShader.setInt("reflectionTexture", 0);
         waterShader.setInt("refractionTexture",1);
         waterShader.setInt("DuDvMap",2);
-        waterShader.setInt("normal",3);
+        waterShader.setInt("normalMap",3);
+        waterShader.setFloat("distortionStrength",mDist);
+        cout<< "dist " << mDist << std::endl;
 
         waterShader.setVec3("viewPos", kamera.Position);
 //        waterShader.setVec3("lightPos", lightPos1);
@@ -93,6 +96,9 @@ public:
         glBindVertexArray(VAO_quad);
         glDrawArrays(GL_TRIANGLES,0,6);
         glBindVertexArray(0);
+    }
+    void setDistortionStrentgh(float dist){
+        mDist = dist;
     }
     unsigned int load_texture(std::string pathOfTexture, GLenum format){
         unsigned int tex;

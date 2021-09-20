@@ -32,7 +32,7 @@ uniform vec3 lightPos;
 uniform vec3 viewPos;
 
 uniform float moveFactor;
-float distortionStrength = 0.02;
+uniform float distortionStrength;
 float shineDamper = 20.0;
 float reflectivity = 0.6;
 vec3 CalcPointLight(PointLight light, vec3 normal, vec3 fragPos, vec3 viewDir, vec3 outColor);
@@ -60,9 +60,9 @@ void main() {
 
     vec3 viewDir = normalize(viewPos - FragPos);
     vec3 normall = vec3(0.0,1.0,0.0);
-    vec3 result = CalcPointLight(pointLight,normall , FragPos,  viewDir, vec3(outColor)) + CalcPointLight(pointLight2,normall , FragPos,  viewDir, vec3(outColor));
+    vec3 result = CalcPointLight(pointLight,normal , FragPos,  viewDir, vec3(outColor)) + CalcPointLight(pointLight2,normall , FragPos,  viewDir, vec3(outColor));
 
-    FragColor = vec4(result,1.0) ;
+    FragColor = vec4(result,1.0);
 }
 vec3 CalcPointLight(PointLight light, vec3 normal, vec3 fragPos, vec3 viewDir, vec3 outColor)
 {
@@ -71,7 +71,7 @@ vec3 CalcPointLight(PointLight light, vec3 normal, vec3 fragPos, vec3 viewDir, v
     float diff = max(dot(normal, lightDir), 0.0);
     // specular shading
     vec3 reflectDir = reflect(-lightDir, normal);
-    float spec = pow(max(dot(viewDir, reflectDir), 0.0), 250);
+    float spec = pow(max(dot(viewDir, reflectDir), 0.0), 125);
     // attenuation
     float distance = length(light.position - fragPos);
     float attenuation = 1.0 / (light.constant + light.linear * distance + light.quadratic * (distance * distance));

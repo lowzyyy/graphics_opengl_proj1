@@ -14,7 +14,7 @@ out vec2 texCoords;
 out vec4 clipSpaceCoords;
 out vec3 FragPos;
 //usitnjavanje texture
-float tiling=10;
+float tiling=6.0;
 void main()
 {
   fragWorldPosition = model * vec4(vec3(vertexPos.x,waterHeight,vertexPos.y),1.0);

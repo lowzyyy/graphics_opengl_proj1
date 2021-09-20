@@ -66,6 +66,7 @@ struct ProgramState {
     bool showSmallMaps = false;
     bool wireFrameOption = false;
     float lightPos3f[3];
+    float distortionWater = 0.02;
     Camera camera;
     bool CameraMouseMovementUpdateEnabled = true;
     glm::vec3 backpackPosition = glm::vec3(0.0f);
@@ -346,6 +347,7 @@ int main() {
             smallRefractionMap.draw(smallMapShader,water_FBO.getRefractionTexture());
         }
 
+        terrain_water.setDistortionStrentgh(programState->distortionWater);
         terrain_water.draw(waterShader,programState->camera,SCR_WIDTH,SCR_HEIGHT,water_FBO, glm::vec3(programState->lightPos3f[0], programState->lightPos3f[1], programState->lightPos3f[2]),pointLight.position);
 
 //        if (programState->ImGuiEnabled) {
@@ -426,6 +428,7 @@ void DrawImGui(ProgramState *programState) {
 
             ImGui::Begin("Options");
             ImGui::SliderFloat("Camera speed", &programState->camera.MovementSpeed, 15.0, 30.0);
+            ImGui::SliderFloat("distortion strength", &programState->distortionWater, 0.01, 0.05);
             ImGui::ColorEdit3("Background color", (float *) &programState->clearColor);
             ImGui::Checkbox("Reflection and refraction maps", &programState->showSmallMaps);
             ImGui::Checkbox("Wireframe draw", &programState->wireFrameOption);
