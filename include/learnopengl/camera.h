@@ -67,12 +67,7 @@ public:
     {
         return glm::lookAt(Position, Position + Front, Up);
     }
-//    void setSpeed(const float speed){
-//        this->MovementSpeed = speed;
-//    }
-//    float getSpeed(){
-//        return this->MovementSpeed;
-//    }
+
     // processes input received from any keyboard-like input system. Accepts input parameter in the form of camera defined ENUM (to abstract it from windowing systems)
     void ProcessKeyboard(Camera_Movement direction, float deltaTime)
     {
@@ -122,7 +117,14 @@ public:
         if (Zoom > 45.0f)
             Zoom = 45.0f; 
     }
-
+    void invertPitch(){
+        this->Pitch = -Pitch;
+        updateCameraVectors();
+    }
+    void invertY(){
+        this->Position.y *= -1;
+        updateCameraVectors();
+    }
 private:
     // calculates the front vector from the Camera's (updated) Euler Angles
     void updateCameraVectors()

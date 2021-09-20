@@ -42,7 +42,7 @@ include_directories(${CMAKE_BINARY_DIR}/configuration)
 
 include_directories(include/)
 add_executable(${PROJECT_NAME}
-        ${SOURCES} include/rg/coordinate_system.h include/rg/lightSourceCube.h include/rg/water.h)
+        ${SOURCES} include/rg/coordinate_system.h include/rg/lightSourceCube.h include/rg/water.h include/rg/waterFrameBuffers.h include/rg/gui_picture.h)
 
 target_link_libraries(${PROJECT_NAME} ${LIBS})
 

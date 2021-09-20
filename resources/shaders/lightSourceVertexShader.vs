@@ -6,7 +6,12 @@ uniform mat4 model;
 uniform mat4 pogled;
 uniform mat4 projekcija;
 
+vec4 fragWorldPosition;
+uniform vec4 plane;
+
 void main()
 {
-  gl_Position = projekcija * pogled * model * vec4(vertexPos, 1.0);
+  fragWorldPosition = model * vec4(vertexPos,1.0);
+  gl_ClipDistance[0] = dot(fragWorldPosition, plane);
+  gl_Position = projekcija * pogled * fragWorldPosition;
 }

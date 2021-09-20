@@ -8,7 +8,15 @@
 class lightSourceCube{
 public:
     unsigned int VAO_cube,VBO_cube;
-    lightSourceCube(){
+    glm::vec4 mPlane;
+    Shader lightSourceShader;
+    glm::vec3 lightPosition;
+
+    void setLightPosition(const glm::vec3 &lightPos) {
+        lightSourceCube::lightPosition = lightPos;
+    }
+
+    lightSourceCube(glm::vec4& plane,Shader& shader):mPlane(plane), lightSourceShader(shader){
         float cube_vertices[] = {
                 // positions          // normals           // texture coords
                 -0.5f, -0.5f, -0.5f,  0.0f,  0.0f, -1.0f,  0.0f,  0.0f,
@@ -70,25 +78,26 @@ public:
         //texture coordinates
         glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)(6 * sizeof(float)));
         glEnableVertexAttribArray(2);
+
+        glBindVertexArray(0);
+
     }
 
-    void draw(Shader& lightSourceShader,Camera& kamera,const unsigned int SCR_WIDTH,const unsigned int SCR_HEIGHT,glm::vec3& lightPosition,glm::vec3 lightSourceColor = glm::vec3(1.0)){
+    void draw(Camera& kamera,const unsigned int SCR_WIDTH,const unsigned int SCR_HEIGHT,glm::vec3 lightSourceColor = glm::vec3(1.0)){
         glm::mat4 model_lightCube = glm::mat4(1.0);
-//        model_lightCube = glm::rotate(model_lightCube,2*(float)glfwGetTime(),glm::vec3(0.0,1.0,0.0));
         model_lightCube = glm::translate(model_lightCube,lightPosition);
-
-        //    lightPosition = glm::vec3(model_lightCube[3][0],model_lightCube[3][1],model_lightCube[3][2]);
+//        std::cout << lightPosition.x << " "<< lightPosition.y << " " << lightPosition.z << std::endl;
 
         glm::mat4 pogled_lightCube = glm::mat4(1.0);
         pogled_lightCube = kamera.GetViewMatrix();
         glm::mat4 projekcija_lightCube = glm::mat4(1.0);
-        projekcija_lightCube = glm::perspective(glm::radians(kamera.Zoom),(float)SCR_WIDTH / (float)SCR_HEIGHT, 0.1f, 200.0f);
+        projekcija_lightCube = glm::perspective(glm::radians(kamera.Zoom),(float)SCR_WIDTH / (float)SCR_HEIGHT, 0.1f, 500.0f);
 
         lightSourceShader.use();
-
         lightSourceShader.setMat4("model",model_lightCube);
         lightSourceShader.setMat4("pogled",pogled_lightCube);
         lightSourceShader.setMat4("projekcija",projekcija_lightCube);
+        lightSourceShader.setVec4("plane",mPlane);
 
 //        glm::vec3 lightSourceColor = glm::vec3(1.0);
         lightSourceShader.setVec3("lightSourceColor",lightSourceColor);

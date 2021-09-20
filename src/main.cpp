@@ -16,7 +16,14 @@
 #include <rg/coordinate_system.h>
 #include <rg/lightSourceCube.h>
 #include <rg/water.h>
+#include <rg/waterFrameBuffers.h>
+#include <rg/gui_picture.h>
 #include <iostream>
+void CenterTheWindow(GLFWwindow* window,int m_Width,int m_Height){
+    GLFWmonitor* monitor = glfwGetPrimaryMonitor();
+    const GLFWvidmode* mode = glfwGetVideoMode(monitor);
+    glfwSetWindowPos(window, (mode->width - m_Width) / 2, (mode->height - m_Height) / 2);
+}
 
 void framebuffer_size_callback(GLFWwindow *window, int width, int height);
 
@@ -29,8 +36,8 @@ void processInput(GLFWwindow *window);
 void key_callback(GLFWwindow *window, int key, int scancode, int action, int mods);
 
 // settings
-const unsigned int SCR_WIDTH = 800;
-const unsigned int SCR_HEIGHT = 600;
+const unsigned int SCR_WIDTH = 1600;
+const unsigned int SCR_HEIGHT = 900;
 
 // camera
 
@@ -56,11 +63,15 @@ struct PointLight {
 struct ProgramState {
     glm::vec3 clearColor = glm::vec3(0);
     bool ImGuiEnabled = false;
+    bool showSmallMaps = false;
+    bool wireFrameOption = false;
+    float lightPos3f[3];
     Camera camera;
     bool CameraMouseMovementUpdateEnabled = true;
     glm::vec3 backpackPosition = glm::vec3(0.0f);
     float backpackScale = 1.0f;
     PointLight pointLight;
+    PointLight pointLight_lamp;
     ProgramState()
             : camera(glm::vec3(0.0f, 25.0f, -10.0f)) {}
 
@@ -103,6 +114,25 @@ ProgramState *programState;
 
 void DrawImGui(ProgramState *programState);
 
+void renderScene(Model& lampModel, Shader& lampShader,
+                 Model& ourModel,Shader& ourShader,
+                 lightSourceCube &lightCube1,
+                 coordinate_system& coord_system,
+                 glm::vec3& lightPosition,
+                 glm::vec4 clipPlane){
+    ourShader.use();
+    ourShader.setVec4("plane",clipPlane);
+    ourModel.Draw(ourShader);
+    lampShader.use();
+    lampShader.setVec4("plane",clipPlane);
+    lampModel.Draw(lampShader);
+    lightCube1.mPlane = clipPlane;
+    lightCube1.draw(programState->camera,SCR_WIDTH,SCR_HEIGHT);
+//    lightCube1.setLightPosition(glm::vec3(programState->lightPos3f[0], programState->lightPos3f[1], programState->lightPos3f[2]));
+//    lightCube1.draw(programState->camera,SCR_WIDTH,SCR_HEIGHT);
+    coord_system.mPlane = clipPlane;
+    coord_system.draw(programState->camera,SCR_WIDTH,SCR_HEIGHT);
+}
 int main() {
     // glfw: initialize and configure
     // ------------------------------
@@ -156,20 +186,24 @@ int main() {
 
     ImGui_ImplGlfw_InitForOpenGL(window, true);
     ImGui_ImplOpenGL3_Init("#version 330 core");
-    glfwSetWindowPos(window,SCR_WIDTH/2,SCR_HEIGHT/2);
+    CenterTheWindow(window,SCR_WIDTH,SCR_HEIGHT);
+    //glfwSetWindowPos(window,SCR_WIDTH/2,SCR_HEIGHT/2);
     // configure global opengl state
     // -----------------------------
     glEnable(GL_DEPTH_TEST);
 
     // build and compile shaders
     // -------------------------
-    Shader ourShader("resources/shaders/2.model_lighting.vs", "resources/shaders/2.model_lighting.fs");
+    Shader ourShader("resources/shaders/modelVertexShader.vs", "resources/shaders/modelFragmentShader.fs");
+    Shader lampShader("resources/shaders/modelVertexShader.vs", "resources/shaders/modelFragmentShader.fs");
     Shader coordinateSystemShader("resources/shaders/vertexShader_coordinate_system.vs","resources/shaders/fragmentShader_coordinate_system.fs");
     Shader lightSourceShader("resources/shaders/lightSourceVertexShader.vs", "resources/shaders/lightSourceFragmentShader.fs");
     Shader waterShader("resources/shaders/waterVertexShader.vs","resources/shaders/waterFragmentShader.fs");
+    Shader smallMapShader("resources/shaders/smallReflectionMapVertexShader.vs","resources/shaders/smallReflectionMapFragmentShader.fs");
     // load models
     // -----------
     Model ourModel("resources/objects/ostrvo2/Small Tropical Island/Small Tropical Island.obj");
+    Model lampModel("resources/objects/lampa1/Street Lamp/StreetLamp.obj");
     ourModel.SetShaderTextureNamePrefix("material.");
 
 
@@ -183,19 +217,44 @@ int main() {
     pointLight.constant = 1.0f;
     pointLight.linear = 0.09f;
     pointLight.quadratic = 0.032f;
+    
+    PointLight& pointLight_lamp = programState->pointLight_lamp;
+    programState->lightPos3f[0]=100;
+    programState->lightPos3f[1]=5;
+    programState->lightPos3f[2]=100;
+    pointLight_lamp.position = glm::vec3(programState->lightPos3f[0], programState->lightPos3f[1], programState->lightPos3f[2]);
+    pointLight_lamp.ambient = glm::vec3(0.1, 0.1, 0.1);
+    pointLight_lamp.diffuse = glm::vec3(0.6, 0.6, 0.6);
+    pointLight_lamp.specular = glm::vec3(1.0, 1.0, 1.0);
 
-    coordinate_system coord_system;
-    lightSourceCube lightCube1;
-    water terrain_water(100.0);
+    pointLight_lamp.constant = 1.0f;
+    pointLight_lamp.linear = 0.09f;
+    pointLight_lamp.quadratic = 0.032f;
+
+    float water_height = 0.0;
+    glm::vec4 neutralClipPlane= glm::vec4(0.0,0.0,0.0,water_height);
+    coordinate_system coord_system(neutralClipPlane,coordinateSystemShader);
+    lightSourceCube lightCube1(neutralClipPlane, lightSourceShader);
+    water terrain_water(200.0,water_height,neutralClipPlane);
+    waterFrameBuffers water_FBO(SCR_WIDTH,SCR_HEIGHT);
+    gui_picture smallReflectionMap(0.5,0.5,true);
+    gui_picture smallRefractionMap(0.5,-0.5,false);
 
     // draw in wireframe
 //    glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+
+    glEnable(GL_CLIP_DISTANCE0);
+
     while (!glfwWindowShouldClose(window)) {
         // per-frame time logic
         // --------------------
         float currentFrame = glfwGetTime();
         deltaTime = currentFrame - lastFrame;
         lastFrame = currentFrame;
+        if(programState->wireFrameOption)
+            glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+        else
+            glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 
         // input
         // -----
@@ -207,9 +266,9 @@ int main() {
         glClearColor(programState->clearColor.r, programState->clearColor.g, programState->clearColor.b, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-        // don't forget to enable shader before setting uniforms
+//        ---------------------------------ISLAND-------------------------------
         ourShader.use();
-        pointLight.position = glm::vec3(4.0 * cos(currentFrame), 25.0f, 4.0 * sin(currentFrame));
+        pointLight.position = glm::vec3(10.0 * cos(currentFrame), 25.0f, 10.0 * sin(currentFrame));
         ourShader.setVec3("pointLight.position", pointLight.position);
         ourShader.setVec3("pointLight.ambient", pointLight.ambient);
         ourShader.setVec3("pointLight.diffuse", pointLight.diffuse);
@@ -219,30 +278,79 @@ int main() {
         ourShader.setFloat("pointLight.quadratic", pointLight.quadratic);
         ourShader.setVec3("viewPosition", programState->camera.Position);
         ourShader.setFloat("material.shininess", 8.0f);
-        // view/projection transformations
+        ourShader.setVec4("plane",neutralClipPlane);
+        // view/projection/model transformations
         glm::mat4 projection = glm::perspective(glm::radians(programState->camera.Zoom),
                                                 (float) SCR_WIDTH / (float) SCR_HEIGHT, 0.1f, 500.0f);
-        glm::mat4 view = programState->camera.GetViewMatrix();
         ourShader.setMat4("projection", projection);
+        glm::mat4 view = programState->camera.GetViewMatrix();
         ourShader.setMat4("view", view);
-
-        // render the loaded model
         glm::mat4 model = glm::mat4(1.0f);
         model = glm::translate(model, glm::vec3(0.0,-2,0.0)); // translate it down so it's at the center of the scene
         model = glm::scale(model, glm::vec3(0.5));    // it's a bit too big for our scene, so scale it down
         ourShader.setMat4("model", model);
+//        ---------------------------LAMP---------------------------
+        lampShader.use();
+        lampShader.setVec3("pointLight.position", glm::vec3(programState->lightPos3f[0],programState->lightPos3f[1],programState->lightPos3f[2]));
+        lampShader.setVec3("pointLight.ambient", pointLight_lamp.ambient);
+        lampShader.setVec3("pointLight.diffuse", pointLight_lamp.diffuse);
+        lampShader.setVec3("pointLight.specular", pointLight_lamp.specular);
+        lampShader.setFloat("pointLight.constant", pointLight_lamp.constant);
+        lampShader.setFloat("pointLight.linear", pointLight_lamp.linear);
+        lampShader.setFloat("pointLight.quadratic", pointLight_lamp.quadratic);
+        lampShader.setVec3("viewPosition", programState->camera.Position);
+        lampShader.setFloat("material.shininess", 8.0f);
+        lampShader.setVec4("plane",neutralClipPlane);
+        glm::mat4 projection_lamp = glm::perspective(glm::radians(programState->camera.Zoom),
+                                                (float) SCR_WIDTH / (float) SCR_HEIGHT, 0.1f, 500.0f);
+        glm::mat4 view_lamp = programState->camera.GetViewMatrix();
+        ourShader.setMat4("view", view_lamp);
+        glm::mat4 model_lamp = glm::mat4(1.0);
+        model_lamp = glm::translate(model_lamp,glm::vec3(100.0,-1.0,100.0));
+        model_lamp = glm::rotate(model_lamp, glm::radians(135.0f),glm::vec3(0.0,1.0,0.0));
+        lampShader.setMat4("model",model_lamp);
+        lampShader.setMat4("projection",projection_lamp);
+        lampShader.setMat4("view",view_lamp);
 
-        ourModel.Draw(ourShader);
+//        ----------------------------------------- RENDER -----------------------
+        water_FBO.bindReflectionFrameBuffer();
+        programState->camera.invertPitch();
+        programState->camera.invertY();
+        view = programState->camera.GetViewMatrix();
+        ourShader.use();
+        ourShader.setMat4("view", view);
+        lampShader.use();
+        lampShader.setMat4("view", view);
+        lightCube1.setLightPosition(pointLight.position);
+        renderScene(lampModel,lampShader,ourModel, ourShader, lightCube1, coord_system,pointLight.position,glm::vec4(0.0,1.0,0.0,-water_height));
+        programState->camera.invertPitch();
+        programState->camera.invertY();
+        water_FBO.unbindCurrentBuffer();
 
-        if (programState->ImGuiEnabled)
+
+        view = programState->camera.GetViewMatrix();
+        ourShader.use();
+        ourShader.setMat4("view", view);
+        lampShader.use();
+        lampShader.setMat4("view", view);
+        water_FBO.bindRefractionFrameBuffer();
+        lightCube1.setLightPosition(pointLight.position);
+        renderScene(lampModel,lampShader,ourModel, ourShader, lightCube1, coord_system,pointLight.position,glm::vec4(0.0,-1.0,0.0,water_height));
+        water_FBO.unbindCurrentBuffer();
+
+        lightCube1.setLightPosition(pointLight.position);
+        renderScene(lampModel,lampShader,ourModel, ourShader, lightCube1, coord_system,pointLight.position,glm::vec4(0.0,0.0,0.0,0.0));
+
+        if(programState->showSmallMaps){
+            smallReflectionMap.draw(smallMapShader,water_FBO.getReflectionTexture());
+            smallRefractionMap.draw(smallMapShader,water_FBO.getRefractionTexture());
+        }
+
+        terrain_water.draw(waterShader,programState->camera,SCR_WIDTH,SCR_HEIGHT,water_FBO, glm::vec3(programState->lightPos3f[0], programState->lightPos3f[1], programState->lightPos3f[2]),pointLight.position);
+
+//        if (programState->ImGuiEnabled) {
             DrawImGui(programState);
-
-
-        lightCube1.draw(lightSourceShader,programState->camera,SCR_WIDTH,SCR_HEIGHT,pointLight.position);
-        coord_system.draw(coordinateSystemShader,programState->camera,SCR_WIDTH,SCR_HEIGHT);
-        terrain_water.draw(waterShader,programState->camera,SCR_WIDTH,SCR_HEIGHT);
-
-//        programState->camera.MovementSpeed=5.0;
+//        }
         // glfw: swap buffers and poll IO events (keys pressed/released, mouse moved etc.)
         // -------------------------------------------------------------------------------
         glfwSwapBuffers(window);
@@ -260,6 +368,7 @@ int main() {
     glfwTerminate();
     return 0;
 }
+
 void processInput(GLFWwindow *window) {
     if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
         glfwSetWindowShouldClose(window, true);
@@ -301,35 +410,46 @@ void mouse_callback(GLFWwindow *window, double xpos, double ypos) {
 void scroll_callback(GLFWwindow *window, double xoffset, double yoffset) {
     programState->camera.ProcessMouseScroll(yoffset);
 }
+
 void DrawImGui(ProgramState *programState) {
     ImGui_ImplOpenGL3_NewFrame();
     ImGui_ImplGlfw_NewFrame();
     ImGui::NewFrame();
 
-
     {
-        static float f = 0.0f;
-        ImGui::Begin("Hello window");
-        ImGui::Text("Hello text");
-        ImGui::SliderFloat("Camera speed", &programState->camera.MovementSpeed, 15.0, 30.0);
-        ImGui::ColorEdit3("Background color", (float *) &programState->clearColor);
-        ImGui::DragFloat3("Backpack position", (float*)&programState->backpackPosition);
-        ImGui::DragFloat("Backpack scale", &programState->backpackScale, 0.05, 0.1, 4.0);
-
-        ImGui::DragFloat("pointLight.constant", &programState->pointLight.constant, 0.05, 0.0, 1.0);
-        ImGui::DragFloat("pointLight.linear", &programState->pointLight.linear, 0.05, 0.0, 1.0);
-        ImGui::DragFloat("pointLight.quadratic", &programState->pointLight.quadratic, 0.05, 0.0, 1.0);
+        ImGui::Begin("Controls");{}
+        ImGui::Text("WASD to move, Q/E Down/Up, F1 Options");
         ImGui::End();
     }
+    if(programState->ImGuiEnabled){
+        {
 
-    {
-        ImGui::Begin("Camera info");
-        const Camera& c = programState->camera;
-        ImGui::Text("Camera position: (%f, %f, %f)", c.Position.x, c.Position.y, c.Position.z);
-        ImGui::Text("(Yaw, Pitch): (%f, %f)", c.Yaw, c.Pitch);
-        ImGui::Text("Camera front: (%f, %f, %f)", c.Front.x, c.Front.y, c.Front.z);
-        ImGui::Checkbox("Camera mouse update", &programState->CameraMouseMovementUpdateEnabled);
-        ImGui::End();
+            ImGui::Begin("Options");
+            ImGui::SliderFloat("Camera speed", &programState->camera.MovementSpeed, 15.0, 30.0);
+            ImGui::ColorEdit3("Background color", (float *) &programState->clearColor);
+            ImGui::Checkbox("Reflection and refraction maps", &programState->showSmallMaps);
+            ImGui::Checkbox("Wireframe draw", &programState->wireFrameOption);
+            ImGui::SliderFloat3("lamp1 light pos",&programState->lightPos3f[0],0.0f,100.0f);
+//            cout<< programState->lightPos3f[0] << " " << programState->lightPos3f[1] << " " << programState->lightPos3f[2] << " " <<std::endl;
+//        ImGui::DragFloat3("Backpack position", (float*)&programState->backpackPosition);
+//        ImGui::DragFloat("Backpack scale", &programState->backpackScale, 0.05, 0.1, 4.0);
+
+
+            ImGui::DragFloat("pointLight.constant", &programState->pointLight.constant, 0.05, 0.0, 1.0);
+            ImGui::DragFloat("pointLight.linear", &programState->pointLight.linear, 0.05, 0.0, 1.0);
+            ImGui::DragFloat("pointLight.quadratic", &programState->pointLight.quadratic, 0.05, 0.0, 1.0);
+            ImGui::End();
+        }
+
+        {
+            ImGui::Begin("Camera info");
+            const Camera& c = programState->camera;
+            ImGui::Text("Camera position: (%f, %f, %f)", c.Position.x, c.Position.y, c.Position.z);
+            ImGui::Text("(Yaw, Pitch): (%f, %f)", c.Yaw, c.Pitch);
+            ImGui::Text("Camera front: (%f, %f, %f)", c.Front.x, c.Front.y, c.Front.z);
+            ImGui::Checkbox("Camera mouse update", &programState->CameraMouseMovementUpdateEnabled);
+            ImGui::End();
+        }
     }
 
     ImGui::Render();

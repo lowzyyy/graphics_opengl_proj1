@@ -9,7 +9,9 @@
 class coordinate_system {
 public:
     unsigned int VBO_coordiante_system, VAO_coordiante_system;
-    coordinate_system(){
+    glm::vec4 mPlane;
+    Shader coordinateSystemShader;
+    coordinate_system(glm::vec4& plane,Shader& shader):mPlane(plane), coordinateSystemShader(shader){
 
         float coordinate_sytem_vertices[]={
                 //coordinates       //color
@@ -41,7 +43,7 @@ public:
         glBindBuffer(GL_ARRAY_BUFFER,0);
     }
 
-    void draw(Shader& coordinateSystemShader,Camera& kamera,const unsigned int SCR_WIDTH,const unsigned int SCR_HEIGHT){
+    void draw(Camera& kamera,const unsigned int SCR_WIDTH,const unsigned int SCR_HEIGHT){
         glm::mat4 model_coordinate_system = glm::mat4(1.0);
         glm::mat4 pogled_coordinate_system = glm::mat4(1.0);
         pogled_coordinate_system = kamera.GetViewMatrix();
@@ -53,8 +55,11 @@ public:
         coordinateSystemShader.setMat4("model",model_coordinate_system);
         coordinateSystemShader.setMat4("pogled",pogled_coordinate_system);
         coordinateSystemShader.setMat4("projekcija",projekcija_coordinate_system);
+        coordinateSystemShader.setVec4("plane",mPlane);
         glBindVertexArray(VAO_coordiante_system);
         glDrawArrays(GL_LINES, 0,6);
+        glBindVertexArray(0);
+
     }
 };
 
