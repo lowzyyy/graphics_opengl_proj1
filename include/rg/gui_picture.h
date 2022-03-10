@@ -38,8 +38,10 @@ public:
             glBindBuffer(GL_ARRAY_BUFFER, VBO_quad);
             glBufferData(GL_ARRAY_BUFFER, sizeof(quad_vertices_flip), quad_vertices_flip, GL_STATIC_DRAW);
         }
-        glBindBuffer(GL_ARRAY_BUFFER, VBO_quad);
-        glBufferData(GL_ARRAY_BUFFER, sizeof(quad_vertices), quad_vertices, GL_STATIC_DRAW);
+        else {
+            glBindBuffer(GL_ARRAY_BUFFER, VBO_quad);
+            glBufferData(GL_ARRAY_BUFFER, sizeof(quad_vertices), quad_vertices, GL_STATIC_DRAW);
+        }
 
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
         glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW);

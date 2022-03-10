@@ -7,7 +7,7 @@ Kd 1 1 1
 Ks 0 0 0
 Km 0
 map_Kd isld1.jpg
-
+map_D maxalpha.png
 
 
 newmtl default_palm_stems
@@ -19,6 +19,7 @@ Kd 1 1 1
 Ks 0 0 0
 Km 0
 map_Kd Leaf_CoconutGre0.jpg
+map_D maxalpha.png
 
 newmtl default_palm_leaves
 d 1
@@ -62,6 +63,7 @@ Kd 1 1 1
 Ks 0.6 0.6 0.6
 Km 0
 map_Kd dwd1.jpg
+map_D maxalpha.png
 
 newmtl default_walls
 d 1
@@ -72,6 +74,7 @@ Kd 1 1 1
 Ks 0.6 0.6 0.6
 Km 0
 map_Kd fc1b.jpg
+map_D maxalpha.png
 
 newmtl default_island_bridge
 d 1
@@ -82,6 +85,7 @@ Kd 1 1 1
 Ks 0.6 0.6 0.6
 Km 0
 map_Kd fc1b.jpg
+map_D maxalpha.png
 
 newmtl default_rocks2
 d 1
@@ -92,4 +96,4 @@ Kd 1 1 1
 Ks 0.6 0.6 0.6
 Km 0
 map_Kd tga1.jpg
-
+map_D maxalpha.png

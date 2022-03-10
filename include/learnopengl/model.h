@@ -159,9 +159,9 @@ private:
         // diffuse: texture_diffuseN
         // specular: texture_specularN
         // normal: texture_normalN
-        aiColor3D color(0.0f, 0.0f, 0.0f);
-        material->Get(AI_MATKEY_COLOR_AMBIENT, color);
-
+//        aiColor3D color(0.0f, 0.0f, 0.0f);
+//        material->Get(AI_MATKEY_COLOR_AMBIENT, color);
+        cout << material->GetName().C_Str() <<std::endl;
 
         // 1. diffuse maps
         vector<Texture> diffuseMaps = loadMaterialTextures(material, aiTextureType_DIFFUSE, "texture_diffuse");
@@ -176,6 +176,9 @@ private:
         std::vector<Texture> heightMaps = loadMaterialTextures(material, aiTextureType_AMBIENT, "texture_height");
         textures.insert(textures.end(), heightMaps.begin(), heightMaps.end());
 
+        // 1. diffuse maps
+        vector<Texture> opacityMaps = loadMaterialTextures(material, aiTextureType_OPACITY, "texture_opacity");
+        textures.insert(textures.end(), opacityMaps.begin(), opacityMaps.end());
 
 
         // return a mesh object created from the extracted mesh data
@@ -187,12 +190,15 @@ private:
     vector<Texture> loadMaterialTextures(aiMaterial *mat, aiTextureType type, string typeName)
     {
         vector<Texture> textures;
+
         for(unsigned int i = 0; i < mat->GetTextureCount(type); i++)
         {
             aiString str;
             mat->GetTexture(type, i, &str);
+
             // check if texture was loaded before and if so, continue to next iteration: skip loading a new texture
             bool skip = false;
+            cout<<"     procesuiran: " << this->directory  << " | ime: "<< str.C_Str() <<" | tip: " << typeName<<std::endl;
             for(unsigned int j = 0; j < textures_loaded.size(); j++)
             {
                 if(std::strcmp(textures_loaded[j].path.data(), str.C_Str()) == 0)
@@ -207,6 +213,7 @@ private:
                 Texture texture;
                 texture.id = TextureFromFile(str.C_Str(), this->directory);
                 texture.type = typeName;
+
                 texture.path = str.C_Str();
                 textures.push_back(texture);
                 textures_loaded.push_back(texture);  // store it as texture loaded for entire model, to ensure we won't unnecesery load duplicate textures.
@@ -226,6 +233,7 @@ unsigned int TextureFromFile(const char *path, const string &directory, bool gam
     glGenTextures(1, &textureID);
 
     int width, height, nrComponents;
+//    stbi_set_flip_vertically_on_load(false);
     unsigned char *data = stbi_load(filename.c_str(), &width, &height, &nrComponents, 0);
     if (data)
     {
@@ -236,7 +244,7 @@ unsigned int TextureFromFile(const char *path, const string &directory, bool gam
             format = GL_RGB;
         else if (nrComponents == 4)
             format = GL_RGBA;
-
+        cout<<"format: "<<format<<std::endl;
         glBindTexture(GL_TEXTURE_2D, textureID);
         glTexImage2D(GL_TEXTURE_2D, 0, format, width, height, 0, format, GL_UNSIGNED_BYTE, data);
         glGenerateMipmap(GL_TEXTURE_2D);

@@ -13,6 +13,8 @@ public:
     unsigned int dudv_texture;
     unsigned int normal_texture;
     float mDist = 0.02;
+    float mShininess = 125;
+    bool specularWater;
     water(float scale,float height,glm::vec4& plane) :mScale(scale),mHeight(height),mPlane(plane){
         float quad_vertices[] = { -1, -1, -1, 1, 1, -1,
                                   1, -1, -1, 1,  1, 1 };
@@ -33,8 +35,7 @@ public:
         normal_texture = load_texture("resources/textures/normal_map1.png",GL_RGB);
     }
     
-    void draw(Shader& waterShader,Camera& kamera,const unsigned int SCR_WIDTH,const unsigned int SCR_HEIGHT,waterFrameBuffers& water_fbo,
-              glm::vec3 lightPos1,glm::vec3 lightPos2){
+    void draw(Shader& waterShader,Camera& kamera,const unsigned int SCR_WIDTH,const unsigned int SCR_HEIGHT,waterFrameBuffers& water_fbo){
         glm::mat4 model_water = glm::mat4(1.0);
         model_water = glm::scale(model_water,glm::vec3(mScale,1.0,mScale));
 
@@ -44,34 +45,22 @@ public:
         projekcija_water = glm::perspective(glm::radians(kamera.Zoom),(float)SCR_WIDTH / (float)SCR_HEIGHT, 0.1f, 500.0f);
 
         waterShader.use();
+        if(specularWater)
+            waterShader.setInt("specularWater", 1);
+        else
+            waterShader.setInt("specularWater", 0);
+
         waterShader.setInt("reflectionTexture", 0);
         waterShader.setInt("refractionTexture",1);
         waterShader.setInt("DuDvMap",2);
         waterShader.setInt("normalMap",3);
         waterShader.setFloat("distortionStrength",mDist);
-        cout<< "dist " << mDist << std::endl;
+//        cout<< "dist " << mDist << std::endl;
 
         waterShader.setVec3("viewPos", kamera.Position);
-//        waterShader.setVec3("lightPos", lightPos1);
-        waterShader.setVec3("pointLight.position", lightPos2);
-        waterShader.setVec3("pointLight.ambient", 0.05f, 0.05f, 0.05f);
-        waterShader.setVec3("pointLight.diffuse", 0.8f, 0.8f, 0.8f);
-        waterShader.setVec3("pointLight.specular", 1.0f, 1.0f, 1.0f);
-        waterShader.setVec3("material.specular", 1.0f, 1.0f, 1.0f);
 
-        waterShader.setFloat("pointLight.constant", 1.0f);
-        waterShader.setFloat("pointLight.linear", 0.09);
-        waterShader.setFloat("pointLight.quadratic", 0.032);
-        
-        waterShader.setVec3("pointLight2.position", lightPos1);
-        waterShader.setVec3("pointLight2.ambient", 0.05f, 0.05f, 0.05f);
-        waterShader.setVec3("pointLight2.diffuse", 0.8f, 0.8f, 0.8f);
-        waterShader.setVec3("pointLight2.specular", 1.0f, 1.0f, 1.0f);
         waterShader.setVec3("material.specular", 1.0f, 1.0f, 1.0f);
-
-        waterShader.setFloat("pointLight2.constant", 1.0f);
-        waterShader.setFloat("pointLight2.linear", 0.09);
-        waterShader.setFloat("pointLight2.quadratic", 0.032);
+        waterShader.setFloat("material.shininess",mShininess);
         
         waterShader.setMat4("model",model_water);
         waterShader.setMat4("pogled",pogled_water);
@@ -99,6 +88,9 @@ public:
     }
     void setDistortionStrentgh(float dist){
         mDist = dist;
+    }
+    void setShininess(float shin){
+        mShininess = shin;
     }
     unsigned int load_texture(std::string pathOfTexture, GLenum format){
         unsigned int tex;

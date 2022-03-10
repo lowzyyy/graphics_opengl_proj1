@@ -25,16 +25,21 @@ uniform sampler2D refractionTexture;
 uniform sampler2D DuDvMap;
 uniform sampler2D normalMap;
 
-uniform PointLight pointLight;
-uniform PointLight pointLight2;
 uniform Material material;
 uniform vec3 lightPos;
 uniform vec3 viewPos;
+
+uniform bool specularWater;
 
 uniform float moveFactor;
 uniform float distortionStrength;
 float shineDamper = 20.0;
 float reflectivity = 0.6;
+
+#define MAX_numberOfPointLights 16
+uniform int numberOfPointLights;
+uniform PointLight pointLights[MAX_numberOfPointLights];
+
 vec3 CalcPointLight(PointLight light, vec3 normal, vec3 fragPos, vec3 viewDir, vec3 outColor);
 void main() {
     //scaling to (0,1) interval
@@ -59,19 +64,28 @@ void main() {
     vec4 outColor = mix(texture(reflectionTexture,reflectionTexCoords),texture(refractionTexture,refractionTexCoords),0.5);
 
     vec3 viewDir = normalize(viewPos - FragPos);
-    vec3 normall = vec3(0.0,1.0,0.0);
-    vec3 result = CalcPointLight(pointLight,normal , FragPos,  viewDir, vec3(outColor)) + CalcPointLight(pointLight2,normall , FragPos,  viewDir, vec3(outColor));
 
-    FragColor = vec4(result,1.0);
+    if(specularWater){
+        vec3 result = vec3(0.0,0.0,0.0);
+        for(int i=0; i<MAX_numberOfPointLights;i++){
+                if(i==numberOfPointLights) break;
+                result += CalcPointLight(pointLights[i], normal, FragPos, viewDir,vec3(outColor));
+            }
+        FragColor = vec4(result,1.0);
+    }
+    else
+        FragColor = outColor;
+
 }
 vec3 CalcPointLight(PointLight light, vec3 normal, vec3 fragPos, vec3 viewDir, vec3 outColor)
 {
     vec3 lightDir = normalize(light.position - fragPos);
     // diffuse shading
-    float diff = max(dot(normal, lightDir), 0.0);
+    float diff = max(dot(normal, lightDir), 0.45);
     // specular shading
     vec3 reflectDir = reflect(-lightDir, normal);
-    float spec = pow(max(dot(viewDir, reflectDir), 0.0), 125);
+    vec3 halfWayDir = normalize(lightDir + viewDir);
+    float spec = pow(max(dot(normal, halfWayDir), 0.0), material.shininess);
     // attenuation
     float distance = length(light.position - fragPos);
     float attenuation = 1.0 / (light.constant + light.linear * distance + light.quadratic * (distance * distance));

@@ -16,7 +16,7 @@ public:
         lightSourceCube::lightPosition = lightPos;
     }
 
-    lightSourceCube(glm::vec4& plane,Shader& shader):mPlane(plane), lightSourceShader(shader){
+    lightSourceCube(Shader& shader, const glm::vec4& plane = glm::vec4(0.0,0.0,0.0,0.0)): lightSourceShader(shader), mPlane(plane){
         float cube_vertices[] = {
                 // positions          // normals           // texture coords
                 -0.5f, -0.5f, -0.5f,  0.0f,  0.0f, -1.0f,  0.0f,  0.0f,

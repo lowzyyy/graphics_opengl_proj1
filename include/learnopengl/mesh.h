@@ -61,6 +61,7 @@ public:
         unsigned int specularNr = 1;
         unsigned int normalNr   = 1;
         unsigned int heightNr   = 1;
+        unsigned int opacityNr = 1;
         for(unsigned int i = 0; i < textures.size(); i++)
         {
             glActiveTexture(GL_TEXTURE0 + i); // active proper texture unit before binding
@@ -75,6 +76,8 @@ public:
                 number = std::to_string(normalNr++); // transfer unsigned int to stream
             else if(name == "texture_height")
                 number = std::to_string(heightNr++); // transfer unsigned int to stream
+            else if(name == "texture_opacity")
+                number = std::to_string(opacityNr++);
 
             // now set the sampler to the correct texture unit
             glUniform1i(glGetUniformLocation(shader.ID, (glslIdentifierPrefix + name + number).c_str()), i);

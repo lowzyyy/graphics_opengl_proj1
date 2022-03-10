@@ -11,7 +11,7 @@ public:
     unsigned int VBO_coordiante_system, VAO_coordiante_system;
     glm::vec4 mPlane;
     Shader coordinateSystemShader;
-    coordinate_system(glm::vec4& plane,Shader& shader):mPlane(plane), coordinateSystemShader(shader){
+    coordinate_system(Shader& shader, const glm::vec4& plane = glm::vec4(0.0,0.0,0.0,0.0)): coordinateSystemShader(shader), mPlane(plane){
 
         float coordinate_sytem_vertices[]={
                 //coordinates       //color
