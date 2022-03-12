@@ -243,7 +243,7 @@ int main() {
     water terrain_water(200.0,water_height,waterClipPlane);
     waterFrameBuffers water_FBO(SCR_WIDTH,SCR_HEIGHT);
     //fish
-    int fishPerLine = 4;
+    int fishPerLine = 1;
     int fish_amount = fishPerLine * fishPerLine;
     glm::mat4* modelsInstanced;
     modelsInstanced = new glm::mat4[fish_amount];
@@ -430,9 +430,13 @@ void createModelsInstancedFish(glm::mat4 *models, int fishPerLine, float ground_
     int fishCounter = 0;
     std::random_device rd;
     std::mt19937 mt(rd());
-    for(int i=200;i>-200;i-=step){
+    int fishCounter_z = 0;
+    int fishCounter_x = 0;
+    for(int i=200;fishCounter_x++<fishPerLine;i-=step){
         next_step_z = 200 - step;
-        for(int j=200;j>-200;j-=step){
+        fishCounter_z = 0;
+        for(int j=200;fishCounter_z++<fishPerLine;j-=step){
+
             std::uniform_real_distribution<double> dist_x(next_step_x + step_offset, i-step_offset);
             x = dist_x(mt);
             std::uniform_real_distribution<double> dist_z(next_step_z + step_offset, j-step_offset);
