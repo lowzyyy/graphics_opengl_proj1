@@ -19,7 +19,7 @@ void main()
     fragWorldPosition = modelMatrixInstanced * vec4(aPos,1.0);
     gl_ClipDistance[0] = dot(fragWorldPosition, plane);
     FragPos = vec3(fragWorldPosition);
-    Normal = aNormal;
+    Normal = mat3(modelMatrixInstanced) * aNormal;
     TexCoords = aTexCoords;
     gl_Position = projection * view * vec4(FragPos, 1.0);
 }

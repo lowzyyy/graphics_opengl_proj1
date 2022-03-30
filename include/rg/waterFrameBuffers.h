@@ -76,7 +76,7 @@ public:
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
         glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, refractionDepthTexture, 0);
 
-          //moze i sa ovim metodom kao kod reflection. Ne znam koja je razlika
+          //moze i sa ovim metodom kao kod reflection. Ne znam koja je razlika (edit: render bufferi su brzi od tekstura ali se isto moze postici valjda)
 //        glGenRenderbuffers(1,&refractionDepthTexture);
 //        glBindRenderbuffer(GL_RENDERBUFFER,refractionDepthTexture);
 //        glRenderbufferStorage(GL_RENDERBUFFER,GL_DEPTH_COMPONENT,REFRACTION_WIDTH,REFLECTION_HEIGHT);

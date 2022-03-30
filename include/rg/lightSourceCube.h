@@ -11,7 +11,11 @@ public:
     glm::vec4 mPlane;
     Shader lightSourceShader;
     glm::vec3 lightPosition;
+    float rotationAngle = 0;
 
+    void setRotationAngle(const float rotation_Angle){
+        rotationAngle = rotation_Angle;
+    }
     void setLightPosition(const glm::vec3 &lightPos) {
         lightSourceCube::lightPosition = lightPos;
     }
@@ -83,9 +87,10 @@ public:
 
     }
 
-    void draw(Camera& kamera,const unsigned int SCR_WIDTH,const unsigned int SCR_HEIGHT,glm::vec3 lightSourceColor = glm::vec3(1.0)){
+    void draw(Camera& kamera,const unsigned int SCR_WIDTH,const unsigned int SCR_HEIGHT,glm::vec3 lightSourceColor = glm::vec3(4.0)){
         glm::mat4 model_lightCube = glm::mat4(1.0);
         model_lightCube = glm::translate(model_lightCube,lightPosition);
+        model_lightCube = glm::rotate(model_lightCube,glm::radians(rotationAngle),glm::vec3(0.0,1.0,0.0));
 //        std::cout << lightPosition.x << " "<< lightPosition.y << " " << lightPosition.z << std::endl;
 
         glm::mat4 pogled_lightCube = glm::mat4(1.0);
