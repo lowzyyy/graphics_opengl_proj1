@@ -77,8 +77,10 @@ struct ProgramState {
     float shininessWater = 256;
     //bloom
     float exposure = 1.0;
+    float gamma = 2.2;
     bool bloom = true;
     bool day = true;
+
     Camera camera;
     bool CameraMouseMovementUpdateEnabled = true;
     PointLight pointLight;
@@ -358,11 +360,15 @@ int main() {
 //      ------------------------------------ RENDER -------------------------------------------
         //change directional light based on day/night checkbox
         if(programState->day){
+            programState->gamma = 1.6;
+            programState->exposure = 2.0;
             dirLight.ambient = ambient_day;
             dirLight.diffuse = diffuse_day;
             dirLight.specular = specular_day;
         }
         else{
+            programState->gamma = 2.2;
+            programState->exposure = 1.0;
             dirLight.ambient = ambient_night;
             dirLight.diffuse = diffuse_night;
             dirLight.specular = specular_night;
@@ -466,6 +472,7 @@ int main() {
         glBindTexture(GL_TEXTURE_2D, pingpongColorbuffers[!horizontal]);
         shaderBloomFinal.setInt("bloom", programState->bloom);
         shaderBloomFinal.setFloat("exposure", programState->exposure);
+        shaderBloomFinal.setFloat("gamma",programState->gamma);
         renderQuad();
         DrawImGui(programState);
 
@@ -709,9 +716,10 @@ void DrawImGui(ProgramState *programState) {
             ImGui::Checkbox("Bloom", &programState->bloom);
             ImGui::SameLine();
             ImGui::Checkbox("Day/Night", &programState->day);
-            ImGui::SliderFloat("Shininess water", &programState->shininessWater, 100, 256);
+            ImGui::SliderFloat("Shininess water", &programState->shininessWater, 100, 512);
             ImGui::Checkbox("Reflection and refraction maps", &programState->showSmallMaps);
             ImGui::Checkbox("Wireframe draw", &programState->wireFrameOption);
+            ImGui::SliderFloat("gamma", &programState->gamma, 0, 5);
             ImGui::SliderFloat("exposure",&programState->exposure,0.0f,2.0f);
             ImGui::SliderFloat("pointLight.constant", &programState->pointLight.constant,  0.0, 1.0);
             ImGui::SliderFloat("pointLight.linear", &programState->pointLight.linear, 0.0, 1.0);
