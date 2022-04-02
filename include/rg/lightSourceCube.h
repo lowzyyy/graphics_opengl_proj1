@@ -6,8 +6,10 @@
 #define PROJECT_BASE_LIGHTSOURCECUBE_H
 
 class lightSourceCube{
+private:
+    static unsigned VAO_cube;
+    static unsigned int VBO_cube;
 public:
-    unsigned int VAO_cube,VBO_cube;
     glm::vec4 mPlane;
     Shader lightSourceShader;
     glm::vec3 lightPosition;
@@ -19,10 +21,12 @@ public:
     void setLightPosition(const glm::vec3 &lightPos) {
         lightSourceCube::lightPosition = lightPos;
     }
-
-    lightSourceCube(Shader& shader, const glm::vec4& plane = glm::vec4(0.0,0.0,0.0,0.0)): lightSourceShader(shader), mPlane(plane){
+    static unsigned int getVAO(){
+        return VAO_cube;
+    }
+    static void Init(){
         float cube_vertices[] = {
-                // positions          // normals           // texture coords
+                // positions                        // normals                   // texture coords
                 -0.5f, -0.5f, -0.5f,  0.0f,  0.0f, -1.0f,  0.0f,  0.0f,
                 0.5f, -0.5f, -0.5f,  0.0f,  0.0f, -1.0f,  1.0f,  0.0f,
                 0.5f,  0.5f, -0.5f,  0.0f,  0.0f, -1.0f,  1.0f,  1.0f,
@@ -84,6 +88,8 @@ public:
         glEnableVertexAttribArray(2);
 
         glBindVertexArray(0);
+    }
+    lightSourceCube(Shader& shader, const glm::vec4& plane = glm::vec4(0.0,0.0,0.0,0.0)): lightSourceShader(shader), mPlane(plane){
 
     }
 

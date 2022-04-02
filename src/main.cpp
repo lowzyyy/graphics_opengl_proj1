@@ -37,6 +37,7 @@ void key_callback(GLFWwindow *window, int key, int scancode, int action, int mod
 const unsigned int SCR_WIDTH = 1600;
 const unsigned int SCR_HEIGHT = 900;
 int terrain_length = 300;
+glm::vec3 default_attenuation = glm::vec3(1.0,0.161,0.0);
 
 
 // camera
@@ -71,10 +72,13 @@ struct ProgramState {
     bool ImGuiEnabled = false;
     bool showSmallMaps = false;
     bool wireFrameOption = false;
+    bool coordinateSystemOption = true;
     bool waterSpecular = false;
+    bool attenuationOption = false;
+    bool resetAttenuation = false;
     float lightPos3f[3] = {116.5,14.5,116.5};
     float distortionWater = 0.02;
-    float shininessWater = 256;
+    float shininessWater = 512;
     //bloom
     float exposure = 1.0;
     float gamma = 2.2;
@@ -84,7 +88,6 @@ struct ProgramState {
     Camera camera;
     bool CameraMouseMovementUpdateEnabled = true;
     PointLight pointLight;
-    PointLight pointLight_lamp;
     DirLight directionalLight;
     ProgramState()
             : camera(glm::vec3(0.0f, 25.0f, -10.0f)) {}
@@ -126,7 +129,7 @@ void ProgramState::LoadFromFile(std::string filename) {
 ProgramState *programState;
 
 void DrawImGui(ProgramState *programState);
-void renderScene(list<std::pair<Model,Shader>> &modeli, lightSourceCube &lightCube1, lightSourceCube &lightCube2, coordinate_system& coord_system, glm::vec4 clipPlane);
+void renderScene(list<std::pair<Model,Shader>> &modeli, lightSourceCube &lightCube1, coordinate_system& coord_system, glm::vec4 clipPlane);
 void setShaderLights(Shader &shader, std::vector<PointLight*> &lights,int,DirLight&);
 void setMatrixAndLightsIsland(Shader &shader, vector<PointLight *> pointLights,int numberOfPointLights,DirLight& );
 
@@ -140,7 +143,8 @@ void createModelsInstancedFish(glm::mat4 *models, int fishPerLine,float ground_z
 
 void drawInstancedFish(Model model, int fish_amount);
 
-void updateFishVAO(Model &fishModel, int &fish_amount, glm::mat4 *modelsInstanced);
+void updateInstancedModelVAO(Model &, int& , glm::mat4 *modelsInstanced);
+void updateInstanceCubeVAO(int &amount, glm::mat4 *modelsInstanced);
 
 void createFramebufferHDR(unsigned int &hdrFBO, unsigned int *colorBuffers);
 
@@ -148,6 +152,18 @@ void createFramebufferPingPong(unsigned int *pingpongFBO, unsigned int *pingpong
 
 void renderQuad();
 
+void createModelsInstancedLamp(glm::mat4 *models);
+
+void drawInstancedLamp(Model model, int i);
+
+void createModelsInstancedCubeLight(glm::mat4 *models);
+
+void drawInstancedCubeLights(int &amount);
+
+
+//saving some space, all cubes are using the same vao and vbo instead of making them in constructor
+unsigned int lightSourceCube::VAO_cube;
+unsigned int lightSourceCube::VBO_cube;
 int main() {
     // glfw: initialize and configure
     // ------------------------------
@@ -207,10 +223,11 @@ int main() {
 
     //build and compile SHADERS BEGIN-------------------------------------------------
     Shader ourShader("resources/shaders/modelVertexShader.vs", "resources/shaders/modelFragmentShader.fs");
-    Shader lampShader("resources/shaders/modelVertexShader.vs", "resources/shaders/modelFragmentShader.fs");
+    Shader lampShader("resources/shaders/lampModelInstancedVertexShader.vs", "resources/shaders/modelFragmentShader.fs");
     Shader fishShader("resources/shaders/fishModelInstancedVertexShader.vs", "resources/shaders/modelFragmentShader.fs");
     Shader coordinateSystemShader("resources/shaders/coordinateSystemVertexShader.vs","resources/shaders/coordinateSystemFragmentShader.fs");
     Shader lightSourceShader("resources/shaders/lightSourceVertexShader.vs", "resources/shaders/lightSourceFragmentShader.fs");
+    Shader lightSourceInstancedShader("resources/shaders/lightSourceInstancedVertexShader.vs","resources/shaders/lightSourceFragmentShader.fs");
 //    Shader lightSourceShader2("resources/shaders/lightSourceVertexShader.vs", "resources/shaders/lightSourceFragmentShader.fs");
     Shader waterShader("resources/shaders/waterVertexShader.vs","resources/shaders/waterFragmentShader.fs");
     Shader smallMapShader("resources/shaders/smallMapVertexShader.vs","resources/shaders/smallMapFragmentShader.fs");
@@ -230,7 +247,7 @@ int main() {
     //store all models in a list
     std::list<std::pair<Model,Shader>> modeli;
     modeli.insert(modeli.end(),make_pair(ourModel,ourShader));
-    modeli.insert(modeli.end(),make_pair(lampModel,lampShader));
+//    modeli.insert(modeli.end(),make_pair(lampModel,lampShader));
     //all pointlights
     vector<PointLight*> pointLights;
 
@@ -245,13 +262,15 @@ int main() {
     //rotating lightcube end---------------------------------------------------------------------------------
 
     //lamp light begin---------------------------------------------------------------------------------
-    PointLight& pointLight_lamp = programState->pointLight_lamp;
-    pointLight_lamp.position = glm::vec3(programState->lightPos3f[0], programState->lightPos3f[1], programState->lightPos3f[2]);
-    pointLight_lamp.ambient = glm::vec3(0.1, 0.1, 0.1);
-    pointLight_lamp.diffuse = glm::vec3(0.6, 0.6, 0.6);
-    pointLight_lamp.specular = glm::vec3(1.0, 1.0, 1.0);
+    PointLight pointLight_lamp_1 = {glm::vec3(116.5,14.5,116.5),glm::vec3(0.1, 0.1, 0.1),glm::vec3(0.6, 0.6, 0.6),glm::vec3(1.0, 1.0, 1.0)};
+    PointLight pointLight_lamp_2 = {glm::vec3(-116.5,14.5,116.5),glm::vec3(0.1, 0.1, 0.1),glm::vec3(0.6, 0.6, 0.6),glm::vec3(1.0, 1.0, 1.0)};
+    PointLight pointLight_lamp_3 = {glm::vec3(-116.5,14.5,-116.5),glm::vec3(0.1, 0.1, 0.1),glm::vec3(0.6, 0.6, 0.6),glm::vec3(1.0, 1.0, 1.0)};
+    PointLight pointLight_lamp_4 = {glm::vec3(116.5,14.5,-116.5),glm::vec3(0.1, 0.1, 0.1),glm::vec3(0.6, 0.6, 0.6),glm::vec3(1.0, 1.0, 1.0)};
 
-    pointLights.push_back(&pointLight_lamp);
+    pointLights.push_back(&pointLight_lamp_1);
+    pointLights.push_back(&pointLight_lamp_2);
+    pointLights.push_back(&pointLight_lamp_3);
+    pointLights.push_back(&pointLight_lamp_4);
     //lamp light end---------------------------------------------------------------------------------
 
     //directional light begin
@@ -271,21 +290,37 @@ int main() {
     float water_height = 1;
     float ground_zero = 1.5;
     glm::vec4 waterClipPlane= glm::vec4(0.0,1,0.0,water_height);
-    coordinate_system coord_system(coordinateSystemShader);
-    lightSourceCube lightCube1(lightSourceShader);
-    lightSourceCube lightCube2(lightSourceShader);
     water terrain_water(150.0,water_height,waterClipPlane);
     waterFrameBuffers water_FBO(SCR_WIDTH,SCR_HEIGHT);
+    coordinate_system coord_system(coordinateSystemShader);
 
-    //fish
+    lightSourceCube lightCube1(lightSourceShader);
+    //cube light instanced
+    int lightLampCubes_amount = 4;
+    glm::mat4* lightCubesModelsInstanced;
+    lightCubesModelsInstanced = new glm::mat4[lightLampCubes_amount];
+    lightSourceCube::Init();
+    createModelsInstancedCubeLight(lightCubesModelsInstanced);
+    updateInstanceCubeVAO(lightLampCubes_amount,lightCubesModelsInstanced);
+
+
+    //fish instanced
     int fishPerLine = 2;
     int fish_amount = fishPerLine * fishPerLine;
-    glm::mat4* modelsInstanced;
-    modelsInstanced = new glm::mat4[fish_amount];
+    glm::mat4* fishModelsInstanced;
+    fishModelsInstanced = new glm::mat4[fish_amount];
     fishShader.setInt("texture_diffuse1", 0);
     fishShader.setInt("texture_normal1", 1);
-    createModelsInstancedFish(modelsInstanced,fishPerLine,ground_zero,water_height);
-    updateFishVAO(fishModel,fish_amount,modelsInstanced);
+    createModelsInstancedFish(fishModelsInstanced,fishPerLine,ground_zero,water_height);
+    updateInstancedModelVAO(fishModel,fish_amount,fishModelsInstanced);
+
+    //lamp instanced
+    int lamp_amount = 4;
+    glm::mat4* lampModelsInstanced;
+    lampModelsInstanced= new glm::mat4[4];
+    lampShader.setInt("texture_diffuse1",0);
+    createModelsInstancedLamp(lampModelsInstanced);
+    updateInstancedModelVAO(lampModel,lamp_amount,lampModelsInstanced);
 
     //Bloom
     //make hdr framebuffer which contains whole scene(color att 0) and only bright parts (color att 1 which will blur after)
@@ -329,10 +364,9 @@ int main() {
         int numberOfPointlights = pointLights.size();
         //update light position every frame
         pointLightCube.position = glm::vec3(10.0 * cos(currentFrame), 25.0f, 10.0 * sin(currentFrame));
-        pointLight_lamp.position = glm::vec3(programState->lightPos3f[0],programState->lightPos3f[1],programState->lightPos3f[2]);
-        pointLight_lamp.constant = pointLightCube.constant;
-        pointLight_lamp.linear = pointLightCube.linear;
-        pointLight_lamp.quadratic = pointLightCube.quadratic;
+//        pointLight_lamp.constant = pointLightCube.constant;
+//        pointLight_lamp.linear = pointLightCube.linear;
+//        pointLight_lamp.quadratic = pointLightCube.quadratic;
 //        ---------------------------------ISLAND-------------------------------
         ourShader.use();
         setMatrixAndLightsIsland(ourShader,pointLights,numberOfPointlights, dirLight);
@@ -341,37 +375,41 @@ int main() {
 
 //        ---------------------------LAMP---------------------------
         lampShader.use();
-        glm::mat4 model_lamp = glm::mat4(1.0);
-        model_lamp = glm::translate(model_lamp,glm::vec3(120.0,5,120.0));
-        model_lamp = glm::rotate(model_lamp, glm::radians(45.0f),glm::vec3(0.0,1.0,0.0));
-        model_lamp = glm::scale(model_lamp,glm::vec3(0.85));
-
-        setMatrixAndLightsAll(lampShader,model_lamp,pointLights,numberOfPointlights,dirLight);
-
+        setMatrixAndLightsInstanced(lampShader, lampModelsInstanced, pointLights, numberOfPointlights,dirLight);
         lampShader.setVec3("viewPosition", programState->camera.Position);
         lampShader.setFloat("material.shininess", 32.0f);
-//        ------------------------------FISH----------------------------
-         fishShader.use();
-        setMatrixAndLightsInstanced(fishShader, modelsInstanced, pointLights,numberOfPointlights,dirLight);
+//        ---------------------------------CUBE LIGHTS-------------------------------------------
+        lightSourceInstancedShader.use();
+        lightSourceInstancedShader.setVec3("lightSourceColor",glm::vec3(4.0));
+        glm::mat4 projection = glm::perspective(glm::radians(programState->camera.Zoom),(float) SCR_WIDTH / (float) SCR_HEIGHT, 0.1f, 500.0f);
+        lightSourceInstancedShader.setMat4("projection", projection);
 
+//        ------------------------------FISH----------------------------
+        fishShader.use();
+        setMatrixAndLightsInstanced(fishShader, fishModelsInstanced, pointLights,numberOfPointlights,dirLight);
         fishShader.setVec3("viewPosition", programState->camera.Position);
         fishShader.setFloat("material.shininess", 32.0f);
-
 //      ------------------------------------ RENDER -------------------------------------------
         //change directional light based on day/night checkbox
         if(programState->day){
-            programState->gamma = 1.6;
+            programState->gamma = 1.5;
             programState->exposure = 2.0;
             dirLight.ambient = ambient_day;
             dirLight.diffuse = diffuse_day;
             dirLight.specular = specular_day;
         }
         else{
-            programState->gamma = 2.2;
+            programState->gamma = 2.0;
             programState->exposure = 1.0;
             dirLight.ambient = ambient_night;
             dirLight.diffuse = diffuse_night;
             dirLight.specular = specular_night;
+        }
+        if(programState->resetAttenuation){
+            programState->pointLight.constant = default_attenuation.x;
+            programState->pointLight.linear = default_attenuation.y;
+            programState->pointLight.quadratic = default_attenuation.z;
+            programState->resetAttenuation = false;
         }
         //reflection map render
         water_FBO.bindReflectionFrameBuffer();
@@ -381,9 +419,15 @@ int main() {
         glm::mat4 view = programState->camera.GetViewMatrix();
         ourShader.use();
         ourShader.setMat4("view", view);
+        renderScene(modeli, lightCube1, coord_system, waterClipPlane);
         lampShader.use();
         lampShader.setMat4("view", view);
-        renderScene(modeli, lightCube1,lightCube2, coord_system, waterClipPlane);
+        lampShader.setVec4("plane",waterClipPlane);
+        drawInstancedLamp(lampModel,lamp_amount);
+        lightSourceInstancedShader.use();
+        lightSourceInstancedShader.setMat4("view",view);
+        lightSourceInstancedShader.setVec4("plane",waterClipPlane);
+        drawInstancedCubeLights(lightLampCubes_amount);
         programState->camera.invertPitch();
         programState->camera.invertY();
         water_FBO.unbindCurrentBuffer();
@@ -394,12 +438,20 @@ int main() {
         view = programState->camera.GetViewMatrix();
         ourShader.use();
         ourShader.setMat4("view", view);
-        lampShader.use();
-        lampShader.setMat4("view", view);
-        renderScene(modeli, lightCube1, lightCube2, coord_system,waterClipPlane);
+        renderScene(modeli, lightCube1, coord_system,waterClipPlane);
         fishShader.use();
+        fishShader.setMat4("view", view);
         fishShader.setVec4("plane",waterClipPlane);
         drawInstancedFish(fishModel,fish_amount);
+        lampShader.use();
+        lampShader.setMat4("view", view);
+        lampShader.setVec4("plane",waterClipPlane);
+        drawInstancedLamp(lampModel,lamp_amount);
+        lightSourceInstancedShader.use();
+        lightSourceInstancedShader.setMat4("view",view);
+        lightSourceInstancedShader.setVec4("plane",waterClipPlane);
+        drawInstancedCubeLights(lightLampCubes_amount);
+
         water_FBO.unbindCurrentBuffer();
 
 
@@ -417,15 +469,18 @@ int main() {
                 waterClipPlane = glm::vec4(0.0,1.0,0.0,ground_zero);
         }
 
-        renderScene(modeli, lightCube1,lightCube2, coord_system,waterClipPlane);
+        renderScene(modeli, lightCube1, coord_system,waterClipPlane);
         fishShader.use();
         fishShader.setVec4("plane",waterClipPlane);
         drawInstancedFish(fishModel,fish_amount);
+        lampShader.use();
+        lampShader.setVec4("plane",waterClipPlane);
+        drawInstancedLamp(lampModel,lamp_amount);
+        lightSourceInstancedShader.use();
+        lightSourceInstancedShader.setMat4("view",view);
+        lightSourceInstancedShader.setVec4("plane",waterClipPlane);
+        drawInstancedCubeLights(lightLampCubes_amount);
 
-        if(programState->showSmallMaps){
-            smallReflectionMap.draw(smallMapShader,water_FBO.getReflectionTexture());
-            smallRefractionMap.draw(smallMapShader,water_FBO.getRefractionTexture());
-        }
 
         terrain_water.setDistortionStrentgh(programState->distortionWater);
         if(programState->waterSpecular) {
@@ -439,13 +494,12 @@ int main() {
         setShaderLights(waterShader,pointLights,numberOfPointlights,dirLight);
         terrain_water.draw(waterShader,programState->camera,SCR_WIDTH,SCR_HEIGHT,water_FBO);
 
-
-
         glBindFramebuffer(GL_FRAMEBUFFER, 0);
         glViewport(0, 0, SCR_WIDTH, SCR_HEIGHT);
 
         glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 
+        //blur color att 1 with ping pong buffers
         bool horizontal = true, first_iteration = true;
         unsigned int amount = 10;
         shaderBlur.use();
@@ -465,6 +519,7 @@ int main() {
         glBindFramebuffer(GL_FRAMEBUFFER, 0);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         glViewport(0, 0, SCR_WIDTH, SCR_HEIGHT);
+        //merge blurred picture with actual picture
         shaderBloomFinal.use();
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_2D, colorBuffers[0]);
@@ -474,6 +529,13 @@ int main() {
         shaderBloomFinal.setFloat("exposure", programState->exposure);
         shaderBloomFinal.setFloat("gamma",programState->gamma);
         renderQuad();
+        //to draw small maps and no hdr objects shining through
+        glDisable(GL_DEPTH_TEST);
+        if(programState->showSmallMaps){
+            smallReflectionMap.draw(smallMapShader,water_FBO.getReflectionTexture());
+            smallRefractionMap.draw(smallMapShader,water_FBO.getRefractionTexture());
+        }
+        glEnable(GL_DEPTH_TEST);
         DrawImGui(programState);
 
         // glfw: swap buffers and poll IO events (keys pressed/released, mouse moved etc.)
@@ -493,6 +555,66 @@ int main() {
     glfwTerminate();
     return 0;
 }
+
+
+void drawInstancedCubeLights(int &amount) {
+    glBindVertexArray(lightSourceCube::getVAO());
+    glDrawArraysInstanced(GL_TRIANGLES, 0, 36, amount);
+    glBindVertexArray(0);
+}
+
+void createModelsInstancedCubeLight(glm::mat4 *models) {
+    glm::mat4 model_cubeLight = glm::mat4(1.0);
+    model_cubeLight = glm::translate(model_cubeLight,glm::vec3(116.5,14.5,116.5)); //120,120
+    models[0] = model_cubeLight;
+    model_cubeLight = glm::mat4(1.0);
+    model_cubeLight = glm::translate(model_cubeLight,glm::vec3(116.5,14.5,-116.5)); //120,-120
+    models[1] = model_cubeLight;
+    model_cubeLight = glm::mat4(1.0);
+    model_cubeLight = glm::translate(model_cubeLight,glm::vec3(-116.5,14.5,-116.5)); //-120,-120
+    models[2] = model_cubeLight;
+    model_cubeLight = glm::mat4(1.0);
+    model_cubeLight = glm::translate(model_cubeLight,glm::vec3(-116.5,14.5,116.5)); //-120,120
+    models[3] = model_cubeLight;
+}
+
+void drawInstancedLamp(Model model, int lamp_amount) {
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, model.textures_loaded[0].id); // note: we also made the textures_loaded vector public (instead of private) from the model class.
+    for (unsigned int i = 0; i < model.meshes.size(); i++)
+    {
+        glBindVertexArray(model.meshes[i].VAO);
+        glEnable(GL_CULL_FACE);
+        glCullFace(GL_BACK);
+        glDrawElementsInstanced(GL_TRIANGLES, static_cast<unsigned int>(model.meshes[i].indices.size()), GL_UNSIGNED_INT, 0, lamp_amount);
+        glDisable(GL_CULL_FACE);
+        glBindVertexArray(0);
+    }
+}
+
+void createModelsInstancedLamp(glm::mat4 *models) {
+    glm::mat4 model_lamp = glm::mat4(1.0);
+    model_lamp = glm::translate(model_lamp,glm::vec3(120.0,5,120.0));
+    model_lamp = glm::rotate(model_lamp, glm::radians(45.0f),glm::vec3(0.0,1.0,0.0));
+    model_lamp = glm::scale(model_lamp,glm::vec3(0.85));
+    models[0] = model_lamp;
+    model_lamp = glm::mat4(1.0);
+    model_lamp = glm::translate(model_lamp,glm::vec3(120.0,5,-120.0));
+    model_lamp = glm::rotate(model_lamp, glm::radians(135.0f),glm::vec3(0.0,1.0,0.0));
+    model_lamp = glm::scale(model_lamp,glm::vec3(0.85));
+    models[1] = model_lamp;
+    model_lamp = glm::mat4(1.0);
+    model_lamp = glm::translate(model_lamp,glm::vec3(-120.0,5,-120.0));
+    model_lamp = glm::rotate(model_lamp, glm::radians(-135.0f),glm::vec3(0.0,1.0,0.0));
+    model_lamp = glm::scale(model_lamp,glm::vec3(0.85));
+    models[2] = model_lamp;
+    model_lamp = glm::mat4(1.0);
+    model_lamp = glm::translate(model_lamp,glm::vec3(-120.0,5,120.0));
+    model_lamp = glm::rotate(model_lamp, glm::radians(-45.0f),glm::vec3(0.0,1.0,0.0));
+    model_lamp = glm::scale(model_lamp,glm::vec3(0.85));
+    models[3] = model_lamp;
+}
+
 //function definitons
 void createFramebufferPingPong(unsigned int *pingpongFBO, unsigned int *pingpongColorbuffers) {
     glGenFramebuffers(2, pingpongFBO);
@@ -545,15 +667,36 @@ void createFramebufferHDR(unsigned int &hdrFBO, unsigned int *colorBuffers) {
     glViewport(0, 0, SCR_WIDTH, SCR_HEIGHT);
 
 }
-
-void updateFishVAO(Model &fishModel, int &fish_amount, glm::mat4 *modelsInstanced) {
+void updateInstanceCubeVAO(int &amount, glm::mat4 *modelsInstanced){
     unsigned int buffer;
     glGenBuffers(1, &buffer);
     glBindBuffer(GL_ARRAY_BUFFER, buffer);
-    glBufferData(GL_ARRAY_BUFFER, fish_amount * sizeof(glm::mat4), &modelsInstanced[0], GL_STATIC_DRAW);
-    for (unsigned int i = 0; i < fishModel.meshes.size(); i++)
+    glBufferData(GL_ARRAY_BUFFER, amount * sizeof(glm::mat4), &modelsInstanced[0], GL_STATIC_DRAW);
+    unsigned int VAO = lightSourceCube::getVAO();
+    glBindVertexArray(VAO);
+    glEnableVertexAttribArray(3);
+    glVertexAttribPointer(3, 4, GL_FLOAT, GL_FALSE, sizeof(glm::mat4), (void*)0);
+    glEnableVertexAttribArray(4);
+    glVertexAttribPointer(4, 4, GL_FLOAT, GL_FALSE, sizeof(glm::mat4), (void*)(sizeof(glm::vec4)));
+    glEnableVertexAttribArray(5);
+    glVertexAttribPointer(5, 4, GL_FLOAT, GL_FALSE, sizeof(glm::mat4), (void*)(2 * sizeof(glm::vec4)));
+    glEnableVertexAttribArray(6);
+    glVertexAttribPointer(6, 4, GL_FLOAT, GL_FALSE, sizeof(glm::mat4), (void*)(3 * sizeof(glm::vec4)));
+
+    glVertexAttribDivisor(3, 1);
+    glVertexAttribDivisor(4, 1);
+    glVertexAttribDivisor(5, 1);
+    glVertexAttribDivisor(6, 1);
+    glBindVertexArray(0);
+}
+void updateInstancedModelVAO(Model &model, int &amount, glm::mat4 *modelsInstanced) {
+    unsigned int buffer;
+    glGenBuffers(1, &buffer);
+    glBindBuffer(GL_ARRAY_BUFFER, buffer);
+    glBufferData(GL_ARRAY_BUFFER, amount * sizeof(glm::mat4), &modelsInstanced[0], GL_STATIC_DRAW);
+    for (unsigned int i = 0; i < model.meshes.size(); i++)
     {
-        unsigned int VAO = fishModel.meshes[i].VAO;
+        unsigned int VAO = model.meshes[i].VAO;
         glBindVertexArray(VAO);
         // set attribute pointers for matrix (4 times vec4)
         glEnableVertexAttribArray(3);
@@ -658,7 +801,7 @@ void setMatrixAndLightsIsland(Shader &shader, vector<PointLight *> pointLights,i
     shader.setMat4("view", view);
 }
 
-void renderScene(list<std::pair<Model,Shader>> &modeli, lightSourceCube &lightCube1,lightSourceCube &lightCube2, coordinate_system& coord_system, glm::vec4 clipPlane) {
+void renderScene(list<std::pair<Model,Shader>> &modeli, lightSourceCube &lightCube1, coordinate_system& coord_system, glm::vec4 clipPlane) {
     for(auto& model: modeli){
         model.second.use();
         model.second.setVec4("plane",clipPlane);
@@ -667,13 +810,11 @@ void renderScene(list<std::pair<Model,Shader>> &modeli, lightSourceCube &lightCu
     lightCube1.mPlane = clipPlane;
     lightCube1.setLightPosition(programState->pointLight.position);
     lightCube1.draw(programState->camera,SCR_WIDTH,SCR_HEIGHT);
-    lightCube2.mPlane = clipPlane;
-    lightCube2.setLightPosition(glm::vec3(programState->lightPos3f[0],programState->lightPos3f[1],programState->lightPos3f[2]));
-    lightCube2.setRotationAngle(45.0);
 //    cout <<programState->lightPos3f[0] << " " << programState->lightPos3f[1]<<" "<<programState->lightPos3f[2];
-    lightCube2.draw(programState->camera,SCR_WIDTH,SCR_HEIGHT);
-    coord_system.mPlane = clipPlane;
-    coord_system.draw(programState->camera,SCR_WIDTH,SCR_HEIGHT);
+    if(programState->coordinateSystemOption){
+        coord_system.mPlane = clipPlane;
+        coord_system.draw(programState->camera,SCR_WIDTH,SCR_HEIGHT);
+    }
 }
 
 void setShaderLights(Shader &shader, std::vector<PointLight*> &lights,int n_lights,DirLight& dirLight) {
@@ -710,20 +851,27 @@ void DrawImGui(ProgramState *programState) {
             ImGui::Begin("Options");
             ImGui::SliderFloat("Camera speed", &programState->camera.MovementSpeed, 20.0, 40.0);
             ImGui::SliderFloat("distortion strength", &programState->distortionWater, 0.01, 0.05);
-            ImGui::ColorEdit3("Background color", (float *) &programState->clearColor);
+//            ImGui::ColorEdit3("Background color", (float *) &programState->clearColor);
             ImGui::Checkbox("Specular water", &programState->waterSpecular);
             ImGui::SameLine();
             ImGui::Checkbox("Bloom", &programState->bloom);
             ImGui::SameLine();
             ImGui::Checkbox("Day/Night", &programState->day);
-            ImGui::SliderFloat("Shininess water", &programState->shininessWater, 100, 512);
+            ImGui::SliderFloat("Shininess water", &programState->shininessWater, 100, 1024);
             ImGui::Checkbox("Reflection and refraction maps", &programState->showSmallMaps);
             ImGui::Checkbox("Wireframe draw", &programState->wireFrameOption);
-            ImGui::SliderFloat("gamma", &programState->gamma, 0, 5);
-            ImGui::SliderFloat("exposure",&programState->exposure,0.0f,2.0f);
-            ImGui::SliderFloat("pointLight.constant", &programState->pointLight.constant,  0.0, 1.0);
-            ImGui::SliderFloat("pointLight.linear", &programState->pointLight.linear, 0.0, 1.0);
-            ImGui::SliderFloat("pointLight.quadratic", &programState->pointLight.quadratic, 0.0, 1.0);
+            ImGui::SameLine();
+            ImGui::Checkbox("Coordinate system", &programState->coordinateSystemOption);
+//            ImGui::SliderFloat("gamma", &programState->gamma, 0, 5);
+//            ImGui::SliderFloat("exposure",&programState->exposure,0.0f,2.0f);
+            ImGui::Checkbox("Attenuation settings(test when night)", &programState->attenuationOption);
+            ImGui::SameLine();
+            ImGui::Checkbox("Reset attattenuation", &programState->resetAttenuation);
+            if(programState->attenuationOption){
+                ImGui::SliderFloat("pointLight.constant", &programState->pointLight.constant,  0.0, 1.0);
+                ImGui::SliderFloat("pointLight.linear", &programState->pointLight.linear, 0.0, 1.0);
+                ImGui::SliderFloat("pointLight.quadratic", &programState->pointLight.quadratic, 0.0, 1.0);
+            }
             ImGui::End();
         }
 
