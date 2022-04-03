@@ -74,16 +74,16 @@ struct ProgramState {
     bool wireFrameOption = false;
     bool coordinateSystemOption = true;
     bool waterSpecular = false;
+    bool prevWaterSpecular = true;
     bool attenuationOption = false;
     bool resetAttenuation = false;
-    float lightPos3f[3] = {116.5,14.5,116.5};
     float distortionWater = 0.02;
     float shininessWater = 512;
     //bloom
     float exposure = 1.0;
     float gamma = 2.2;
     bool bloom = true;
-    bool day = true;
+    bool day = false;
 
     Camera camera;
     bool CameraMouseMovementUpdateEnabled = true;
@@ -228,7 +228,6 @@ int main() {
     Shader coordinateSystemShader("resources/shaders/coordinateSystemVertexShader.vs","resources/shaders/coordinateSystemFragmentShader.fs");
     Shader lightSourceShader("resources/shaders/lightSourceVertexShader.vs", "resources/shaders/lightSourceFragmentShader.fs");
     Shader lightSourceInstancedShader("resources/shaders/lightSourceInstancedVertexShader.vs","resources/shaders/lightSourceFragmentShader.fs");
-//    Shader lightSourceShader2("resources/shaders/lightSourceVertexShader.vs", "resources/shaders/lightSourceFragmentShader.fs");
     Shader waterShader("resources/shaders/waterVertexShader.vs","resources/shaders/waterFragmentShader.fs");
     Shader smallMapShader("resources/shaders/smallMapVertexShader.vs","resources/shaders/smallMapFragmentShader.fs");
     Shader shaderBlur("resources/shaders/blur.vs", "resources/shaders/blur.fs");
@@ -247,7 +246,6 @@ int main() {
     //store all models in a list
     std::list<std::pair<Model,Shader>> modeli;
     modeli.insert(modeli.end(),make_pair(ourModel,ourShader));
-//    modeli.insert(modeli.end(),make_pair(lampModel,lampShader));
     //all pointlights
     vector<PointLight*> pointLights;
 
@@ -257,7 +255,7 @@ int main() {
     pointLightCube.ambient = glm::vec3(0.1, 0.1, 0.1);
     pointLightCube.diffuse = glm::vec3(0.6, 0.6, 0.6);
     pointLightCube.specular = glm::vec3(1.0, 1.0, 1.0);
-
+    //TODO: FIX attunation settings for night/day
     pointLights.push_back(&pointLightCube);
     //rotating lightcube end---------------------------------------------------------------------------------
 
@@ -362,11 +360,20 @@ int main() {
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
         int numberOfPointlights = pointLights.size();
-        //update light position every frame
+        //update light position and attenuation settings every frame
         pointLightCube.position = glm::vec3(10.0 * cos(currentFrame), 25.0f, 10.0 * sin(currentFrame));
-//        pointLight_lamp.constant = pointLightCube.constant;
-//        pointLight_lamp.linear = pointLightCube.linear;
-//        pointLight_lamp.quadratic = pointLightCube.quadratic;
+        pointLights[1]->linear = pointLights[0]->linear;
+        pointLights[2]->linear = pointLights[0]->linear;
+        pointLights[3]->linear = pointLights[0]->linear;
+        pointLights[4]->linear = pointLights[0]->linear;
+        pointLights[1]->quadratic = pointLights[0]->quadratic;
+        pointLights[2]->quadratic = pointLights[0]->quadratic;
+        pointLights[3]->quadratic = pointLights[0]->quadratic;
+        pointLights[4]->quadratic = pointLights[0]->quadratic;
+        pointLights[1]->constant = pointLights[0]->constant;
+        pointLights[2]->constant = pointLights[0]->constant;
+        pointLights[3]->constant = pointLights[0]->constant;
+        pointLights[4]->constant = pointLights[0]->constant;
 //        ---------------------------------ISLAND-------------------------------
         ourShader.use();
         setMatrixAndLightsIsland(ourShader,pointLights,numberOfPointlights, dirLight);
@@ -390,13 +397,63 @@ int main() {
         fishShader.setVec3("viewPosition", programState->camera.Position);
         fishShader.setFloat("material.shininess", 32.0f);
 //      ------------------------------------ RENDER -------------------------------------------
-        //change directional light based on day/night checkbox
+        //change directional light and attenuation based on day/night checkbox
+//        if(programState->day){
+//            programState->gamma = 1.5;
+//            programState->exposure = 2.0;
+//            dirLight.ambient = ambient_day;
+//            dirLight.diffuse = diffuse_day;
+//            dirLight.specular = specular_day;
+//            if(programState->waterSpecular && !programState->prevWaterSpecular) {
+//                terrain_water.specularWater = true;
+//                programState->prevWaterSpecular = true;
+//                programState->pointLight.linear = 0.035;
+//            }
+//            else if(!programState->waterSpecular && programState->prevWaterSpecular){
+//                terrain_water.specularWater = false;
+//                programState->prevWaterSpecular = false;
+//                programState->pointLight.linear = 0.161;
+//            }
+//        }
+//        else{
+//            programState->gamma = 2.0;
+//            programState->exposure = 1.0;
+//            dirLight.ambient = ambient_night;
+//            dirLight.diffuse = diffuse_night;
+//            dirLight.specular = specular_night;
+//            if(programState->waterSpecular && !programState->prevWaterSpecular) {
+//                terrain_water.specularWater = true;
+//                programState->prevWaterSpecular = true;
+//                programState->pointLight.linear = 0.040;
+//            }
+//            else if(!programState->waterSpecular && programState->prevWaterSpecular){
+//                terrain_water.specularWater = false;
+//                programState->prevWaterSpecular = false;
+//                programState->pointLight.linear = 0.161;
+//            }
+//        }
+//        if(programState->resetAttenuation){
+//            if(programState->waterSpecular)
+//                if(programState->day)
+//                    programState->pointLight.linear = 0.035;
+//                else
+//                    programState->pointLight.linear = 0.040;
+//            else
+//                programState->pointLight.linear = 0.161;
+//            programState->resetAttenuation = false;
+//        }
+
+        if(programState->waterSpecular)
+            terrain_water.specularWater = true;
+        else
+            terrain_water.specularWater = false;
         if(programState->day){
             programState->gamma = 1.5;
             programState->exposure = 2.0;
             dirLight.ambient = ambient_day;
             dirLight.diffuse = diffuse_day;
             dirLight.specular = specular_day;
+
         }
         else{
             programState->gamma = 2.0;
@@ -404,6 +461,7 @@ int main() {
             dirLight.ambient = ambient_night;
             dirLight.diffuse = diffuse_night;
             dirLight.specular = specular_night;
+
         }
         if(programState->resetAttenuation){
             programState->pointLight.constant = default_attenuation.x;
@@ -483,12 +541,7 @@ int main() {
 
 
         terrain_water.setDistortionStrentgh(programState->distortionWater);
-        if(programState->waterSpecular) {
-            terrain_water.specularWater = true;
-        }
-        else {
-            terrain_water.specularWater = false;
-        }
+
         terrain_water.setShininess(programState->shininessWater);
         waterShader.use();
         setShaderLights(waterShader,pointLights,numberOfPointlights,dirLight);
@@ -566,15 +619,19 @@ void drawInstancedCubeLights(int &amount) {
 void createModelsInstancedCubeLight(glm::mat4 *models) {
     glm::mat4 model_cubeLight = glm::mat4(1.0);
     model_cubeLight = glm::translate(model_cubeLight,glm::vec3(116.5,14.5,116.5)); //120,120
+    model_cubeLight = glm::rotate(model_cubeLight,float(glm::radians(45.0)),glm::vec3(0.0,1.0,0.0));
     models[0] = model_cubeLight;
     model_cubeLight = glm::mat4(1.0);
     model_cubeLight = glm::translate(model_cubeLight,glm::vec3(116.5,14.5,-116.5)); //120,-120
+    model_cubeLight = glm::rotate(model_cubeLight,float(glm::radians(45.0)),glm::vec3(0.0,1.0,0.0));
     models[1] = model_cubeLight;
     model_cubeLight = glm::mat4(1.0);
     model_cubeLight = glm::translate(model_cubeLight,glm::vec3(-116.5,14.5,-116.5)); //-120,-120
+    model_cubeLight = glm::rotate(model_cubeLight,float(glm::radians(45.0)),glm::vec3(0.0,1.0,0.0));
     models[2] = model_cubeLight;
     model_cubeLight = glm::mat4(1.0);
     model_cubeLight = glm::translate(model_cubeLight,glm::vec3(-116.5,14.5,116.5)); //-120,120
+    model_cubeLight = glm::rotate(model_cubeLight,float(glm::radians(45.0)),glm::vec3(0.0,1.0,0.0));
     models[3] = model_cubeLight;
 }
 
