@@ -12,3 +12,6 @@ The project include:
   
 -free camera with zoom support  
 -menu done with imGui  
+
+![day](https://github.com/lowzyyy/graphics_opengl_proj1/tree/main/resources/project_screenshots/day_screenshot.png)
+![night](https://github.com/lowzyyy/graphics_opengl_proj1/tree/main/resources/project_screenshots/night_screenshot.png)
