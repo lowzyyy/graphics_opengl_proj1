@@ -49,6 +49,31 @@ bool firstMouse = true;
 float deltaTime = 0.0f;
 float lastFrame = 0.0f;
 
+
+struct daynightSettings{
+    float dayGamma = 1.3;
+    float dayExposure = 1.41;
+    float dayMixRatio = 0.245;
+    float dayConstant = 1.0;
+    float dayLinear = 0.021;
+    float dayQuadratic = 0.0;
+
+    float nightGamma = 1.034;
+    float nightExposure = 1.0;
+    float nightMixRatio = 0.383;
+    float nightConstant = 1.0;
+    float nightLinear = 0.012;
+    float nightQuadratic = 0.0;
+
+    glm::vec3 dayAmbient = glm::vec3 (0.05f, 0.05f, 0.05f);
+    glm::vec3 dayDiffuse = glm::vec3 (0.4f, 0.4f, 0.4f);
+    glm::vec3 daySpecular = glm::vec3(0.5f, 0.5f, 0.5f);
+    //night
+    glm::vec3 nightAmbient = glm::vec3 (0.0);
+    glm::vec3 nightDiffuse = glm::vec3 (0.0);
+    glm::vec3 nightSpecular = glm::vec3(0.0);
+    
+};
 struct PointLight {
     glm::vec3 position;
     glm::vec3 ambient;
@@ -74,11 +99,13 @@ struct ProgramState {
     bool wireFrameOption = false;
     bool coordinateSystemOption = true;
     bool waterSpecular = false;
-    bool prevWaterSpecular = true;
+    bool prevDayOption = true;
     bool attenuationOption = false;
     bool resetAttenuation = false;
     float distortionWater = 0.02;
     float shininessWater = 512;
+    float mixRatio = 0.5;
+    daynightSettings settings_default;
     //bloom
     float exposure = 1.0;
     float gamma = 2.2;
@@ -127,7 +154,8 @@ void ProgramState::LoadFromFile(std::string filename) {
 }
 
 ProgramState *programState;
-
+unsigned int loadTexture(char const * path);
+unsigned int loadCubemap(vector<std::string> faces);
 void DrawImGui(ProgramState *programState);
 void renderScene(list<std::pair<Model,Shader>> &modeli, lightSourceCube &lightCube1, coordinate_system& coord_system, glm::vec4 clipPlane);
 void setShaderLights(Shader &shader, std::vector<PointLight*> &lights,int,DirLight&);
@@ -160,6 +188,11 @@ void createModelsInstancedCubeLight(glm::mat4 *models);
 
 void drawInstancedCubeLights(int &amount);
 
+
+std::pair<unsigned ,unsigned > createSkybox(vector<std::string> &faces);
+
+void setDayNightParameters(unsigned int&skyboxVAO,unsigned int&cubemapTexture,unsigned int &skyboxVAO_day, unsigned int &cubemapTexture_day,
+                           unsigned int &skyboxVAO_night, unsigned int &cubemapTexture_night);
 
 //saving some space, all cubes are using the same vao and vbo instead of making them in constructor
 unsigned int lightSourceCube::VAO_cube;
@@ -232,6 +265,7 @@ int main() {
     Shader smallMapShader("resources/shaders/smallMapVertexShader.vs","resources/shaders/smallMapFragmentShader.fs");
     Shader shaderBlur("resources/shaders/blur.vs", "resources/shaders/blur.fs");
     Shader shaderBloomFinal("resources/shaders/bloom_final.vs","resources/shaders/bloom_final.fs");
+    Shader skyboxShader("resources/shaders/skyboxVertexShader.vs","resources/shaders/skyboxFragmentShader.fs");
     //build and compile SHADERS END-------------------------------------------------
 
     // load models BEGIN ------------------------------------------------------------------
@@ -255,7 +289,6 @@ int main() {
     pointLightCube.ambient = glm::vec3(0.1, 0.1, 0.1);
     pointLightCube.diffuse = glm::vec3(0.6, 0.6, 0.6);
     pointLightCube.specular = glm::vec3(1.0, 1.0, 1.0);
-    //TODO: FIX attunation settings for night/day
     pointLights.push_back(&pointLightCube);
     //rotating lightcube end---------------------------------------------------------------------------------
 
@@ -275,13 +308,7 @@ int main() {
     DirLight& dirLight = programState->directionalLight;
     //day
     dirLight.direction = glm::vec3(-0.2f, -1.0f, -0.3f);
-    glm::vec3 ambient_day = glm::vec3 (0.05f, 0.05f, 0.05f);
-    glm::vec3 diffuse_day = glm::vec3 (0.4f, 0.4f, 0.4f);
-    glm::vec3 specular_day = glm::vec3(0.5f, 0.5f, 0.5f);
-    //night
-    glm::vec3 ambient_night = glm::vec3 (0.0);
-    glm::vec3 diffuse_night = glm::vec3 (0.0);
-    glm::vec3 specular_night = glm::vec3(0.0);
+    
     //directional light end
 
     //define additional objects and water begin --------------------------------------------------
@@ -289,6 +316,8 @@ int main() {
     float ground_zero = 1.5;
     glm::vec4 waterClipPlane= glm::vec4(0.0,1,0.0,water_height);
     water terrain_water(150.0,water_height,waterClipPlane);
+    waterShader.use();
+    waterShader.setInt("skybox",4);
     waterFrameBuffers water_FBO(SCR_WIDTH,SCR_HEIGHT);
     coordinate_system coord_system(coordinateSystemShader);
 
@@ -335,9 +364,41 @@ int main() {
     shaderBloomFinal.setInt("scene", 0);
     shaderBloomFinal.setInt("bloomBlur", 1);
 
+    //skybox
+    vector<std::string> night_skybox
+            {
+                    FileSystem::getPath("resources/textures/night_skybox/skybox_2048/right.png"),
+                    FileSystem::getPath("resources/textures/night_skybox/skybox_2048/left.png"),
+                    FileSystem::getPath("resources/textures/night_skybox/skybox_2048/top.png"),
+                    FileSystem::getPath("resources/textures/night_skybox/skybox_2048/bottom.png"),
+                    FileSystem::getPath("resources/textures/night_skybox/skybox_2048/front.png"),
+                    FileSystem::getPath("resources/textures/night_skybox/skybox_2048/back.png"),
+            };
+    vector<std::string> day_skybox
+            {
+                    FileSystem::getPath("resources/textures/day_skybox/envmap_miramar/miramar_ft.tga"),
+                    FileSystem::getPath("resources/textures/day_skybox/envmap_miramar/miramar_bk.tga"),
+                    FileSystem::getPath("resources/textures/day_skybox/envmap_miramar/miramar_up.tga"),
+                    FileSystem::getPath("resources/textures/day_skybox/envmap_miramar/miramar_dn.tga"),
+                    FileSystem::getPath("resources/textures/day_skybox/envmap_miramar/miramar_rt.tga"),
+                    FileSystem::getPath("resources/textures/day_skybox/envmap_miramar/miramar_lf.tga"),
+            };
+
+    unsigned int skyboxVAO,cubemapTexture,skyboxVAO_day,skyboxVAO_night,cubemapTexture_day,cubemapTexture_night;
+    auto par = createSkybox(day_skybox);
+    skyboxVAO_day = par.first;
+    cubemapTexture_day = par.second;
+    par = createSkybox(night_skybox);
+    skyboxVAO_night = par.first;
+    cubemapTexture_night = par.second;
+
+    skyboxShader.use();
+    skyboxShader.setInt("skybox", 0);
+
+
     gui_picture smallReflectionMap(0.5,0.5,true);
     gui_picture smallRefractionMap(0.5,-0.5,false);
-
+    
     //define additional objects and water end --------------------------------------------------
     glEnable(GL_DEPTH_TEST);
     while (!glfwWindowShouldClose(window)) {
@@ -397,76 +458,16 @@ int main() {
         fishShader.setVec3("viewPosition", programState->camera.Position);
         fishShader.setFloat("material.shininess", 32.0f);
 //      ------------------------------------ RENDER -------------------------------------------
-        //change directional light and attenuation based on day/night checkbox
-//        if(programState->day){
-//            programState->gamma = 1.5;
-//            programState->exposure = 2.0;
-//            dirLight.ambient = ambient_day;
-//            dirLight.diffuse = diffuse_day;
-//            dirLight.specular = specular_day;
-//            if(programState->waterSpecular && !programState->prevWaterSpecular) {
-//                terrain_water.specularWater = true;
-//                programState->prevWaterSpecular = true;
-//                programState->pointLight.linear = 0.035;
-//            }
-//            else if(!programState->waterSpecular && programState->prevWaterSpecular){
-//                terrain_water.specularWater = false;
-//                programState->prevWaterSpecular = false;
-//                programState->pointLight.linear = 0.161;
-//            }
-//        }
-//        else{
-//            programState->gamma = 2.0;
-//            programState->exposure = 1.0;
-//            dirLight.ambient = ambient_night;
-//            dirLight.diffuse = diffuse_night;
-//            dirLight.specular = specular_night;
-//            if(programState->waterSpecular && !programState->prevWaterSpecular) {
-//                terrain_water.specularWater = true;
-//                programState->prevWaterSpecular = true;
-//                programState->pointLight.linear = 0.040;
-//            }
-//            else if(!programState->waterSpecular && programState->prevWaterSpecular){
-//                terrain_water.specularWater = false;
-//                programState->prevWaterSpecular = false;
-//                programState->pointLight.linear = 0.161;
-//            }
-//        }
-//        if(programState->resetAttenuation){
-//            if(programState->waterSpecular)
-//                if(programState->day)
-//                    programState->pointLight.linear = 0.035;
-//                else
-//                    programState->pointLight.linear = 0.040;
-//            else
-//                programState->pointLight.linear = 0.161;
-//            programState->resetAttenuation = false;
-//        }
 
         if(programState->waterSpecular)
             terrain_water.specularWater = true;
         else
             terrain_water.specularWater = false;
-        if(programState->day){
-            programState->gamma = 1.5;
-            programState->exposure = 2.0;
-            dirLight.ambient = ambient_day;
-            dirLight.diffuse = diffuse_day;
-            dirLight.specular = specular_day;
+        
+        setDayNightParameters(skyboxVAO,cubemapTexture,skyboxVAO_day,cubemapTexture_day,skyboxVAO_night,cubemapTexture_night);
 
-        }
-        else{
-            programState->gamma = 2.0;
-            programState->exposure = 1.0;
-            dirLight.ambient = ambient_night;
-            dirLight.diffuse = diffuse_night;
-            dirLight.specular = specular_night;
-
-        }
         if(programState->resetAttenuation){
-            programState->pointLight.constant = default_attenuation.x;
-            programState->pointLight.linear = default_attenuation.y;
-            programState->pointLight.quadratic = default_attenuation.z;
+            setDayNightParameters(skyboxVAO,cubemapTexture,skyboxVAO_day,cubemapTexture_day,skyboxVAO_night,cubemapTexture_night);
             programState->resetAttenuation = false;
         }
         //reflection map render
@@ -509,7 +510,6 @@ int main() {
         lightSourceInstancedShader.setMat4("view",view);
         lightSourceInstancedShader.setVec4("plane",waterClipPlane);
         drawInstancedCubeLights(lightLampCubes_amount);
-
         water_FBO.unbindCurrentBuffer();
 
 
@@ -543,9 +543,29 @@ int main() {
         terrain_water.setDistortionStrentgh(programState->distortionWater);
 
         terrain_water.setShininess(programState->shininessWater);
+        glDepthFunc(GL_LEQUAL);  // change depth function so depth test passes when values are equal to depth buffer's content
+        skyboxShader.use();
+        glm::mat4 view_skybox = glm::mat4(1.0);
+        view_skybox = glm::mat4(glm::mat3(programState->camera.GetViewMatrix())); // remove translation from the view matrix
+        float skyboxRotate = float(glm::radians(glfwGetTime())*2);
+
+//        view_skybox = glm::rotate(view_skybox,skyboxRotate,glm::vec3(0.0,1.0,0.0));
+        skyboxShader.setMat4("view", view_skybox);
+        skyboxShader.setMat4("projection", projection);
+        // skybox cube
+        glBindVertexArray(skyboxVAO);
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_CUBE_MAP, cubemapTexture);
+        glDrawArrays(GL_TRIANGLES, 0, 36);
+        glBindVertexArray(0);
+        glDepthFunc(GL_LESS); // set depth function back to default
         waterShader.use();
+        waterShader.setFloat("mixRatio",programState->mixRatio);
+        glActiveTexture(GL_TEXTURE4);
+        glBindTexture(GL_TEXTURE_CUBE_MAP, cubemapTexture);
         setShaderLights(waterShader,pointLights,numberOfPointlights,dirLight);
         terrain_water.draw(waterShader,programState->camera,SCR_WIDTH,SCR_HEIGHT,water_FBO);
+
 
         glBindFramebuffer(GL_FRAMEBUFFER, 0);
         glViewport(0, 0, SCR_WIDTH, SCR_HEIGHT);
@@ -607,6 +627,124 @@ int main() {
     // ------------------------------------------------------------------
     glfwTerminate();
     return 0;
+}
+
+void setDayNightParameters(unsigned int&skyboxVAO,unsigned int&cubemapTexture,unsigned int &skyboxVAO_day, unsigned int &cubemapTexture_day,
+                           unsigned int &skyboxVAO_night, unsigned int &cubemapTexture_night) {
+
+    if(programState->resetAttenuation){
+        if(programState->day){
+            programState->pointLight.constant = programState->settings_default.dayConstant;
+            programState->pointLight.linear = programState->settings_default.dayLinear;
+            programState->pointLight.quadratic = programState->settings_default.dayQuadratic;
+        }
+        else{
+            programState->pointLight.constant = programState->settings_default.nightConstant;
+            programState->pointLight.linear = programState->settings_default.nightLinear;
+            programState->pointLight.quadratic = programState->settings_default.nightQuadratic;
+        }
+    }
+    if(programState->day){
+        if(!programState->prevDayOption){
+            programState->gamma = 1.5;
+            programState->exposure = 2.0;
+            programState->directionalLight.ambient = programState->settings_default.dayAmbient;
+            programState->directionalLight.diffuse = programState->settings_default.dayDiffuse;
+            programState->directionalLight.specular = programState->settings_default.daySpecular;
+            skyboxVAO = skyboxVAO_day;
+            cubemapTexture = cubemapTexture_day;
+            programState->pointLight.constant = programState->settings_default.dayConstant;
+            programState->pointLight.linear = programState->settings_default.dayLinear;
+            programState->pointLight.quadratic = programState->settings_default.dayQuadratic;
+            programState->gamma = programState->settings_default.dayGamma; 
+            programState->exposure = programState->settings_default.dayExposure;
+            programState->mixRatio = programState->settings_default.dayMixRatio;
+
+            programState->prevDayOption = true;
+        }
+    }
+    else{
+        if(programState->prevDayOption){
+            programState->gamma = 2.0;
+            programState->exposure = 1.0;
+            programState->directionalLight.ambient = programState->settings_default.nightAmbient;
+            programState->directionalLight.diffuse = programState->settings_default.nightDiffuse;
+            programState->directionalLight.specular = programState->settings_default.nightSpecular;
+            skyboxVAO = skyboxVAO_night;
+            cubemapTexture = cubemapTexture_night;
+            programState->pointLight.constant = programState->settings_default.nightConstant;
+            programState->pointLight.linear = programState->settings_default.nightLinear;
+            programState->pointLight.quadratic = programState->settings_default.nightQuadratic;
+            programState->gamma = programState->settings_default.nightGamma;
+            programState->exposure = programState->settings_default.nightExposure;
+            programState->mixRatio = programState->settings_default.nightMixRatio;
+
+            programState->prevDayOption = false;
+        }
+
+    }
+}
+
+std::pair<unsigned,unsigned > createSkybox(vector<std::string> &faces) {
+    float skyboxVertices[] = {
+            // positions
+            -1.0f,  1.0f, -1.0f,
+            -1.0f, -1.0f, -1.0f,
+            1.0f, -1.0f, -1.0f,
+            1.0f, -1.0f, -1.0f,
+            1.0f,  1.0f, -1.0f,
+            -1.0f,  1.0f, -1.0f,
+
+            -1.0f, -1.0f,  1.0f,
+            -1.0f, -1.0f, -1.0f,
+            -1.0f,  1.0f, -1.0f,
+            -1.0f,  1.0f, -1.0f,
+            -1.0f,  1.0f,  1.0f,
+            -1.0f, -1.0f,  1.0f,
+
+            1.0f, -1.0f, -1.0f,
+            1.0f, -1.0f,  1.0f,
+            1.0f,  1.0f,  1.0f,
+            1.0f,  1.0f,  1.0f,
+            1.0f,  1.0f, -1.0f,
+            1.0f, -1.0f, -1.0f,
+
+            -1.0f, -1.0f,  1.0f,
+            -1.0f,  1.0f,  1.0f,
+            1.0f,  1.0f,  1.0f,
+            1.0f,  1.0f,  1.0f,
+            1.0f, -1.0f,  1.0f,
+            -1.0f, -1.0f,  1.0f,
+
+            -1.0f,  1.0f, -1.0f,
+            1.0f,  1.0f, -1.0f,
+            1.0f,  1.0f,  1.0f,
+            1.0f,  1.0f,  1.0f,
+            -1.0f,  1.0f,  1.0f,
+            -1.0f,  1.0f, -1.0f,
+
+            -1.0f, -1.0f, -1.0f,
+            -1.0f, -1.0f,  1.0f,
+            1.0f, -1.0f, -1.0f,
+            1.0f, -1.0f, -1.0f,
+            -1.0f, -1.0f,  1.0f,
+            1.0f, -1.0f,  1.0f
+    };
+
+    unsigned int skyboxVAO, skyboxVBO;
+    glGenVertexArrays(1, &skyboxVAO);
+    glGenBuffers(1, &skyboxVBO);
+    glBindVertexArray(skyboxVAO);
+    glBindBuffer(GL_ARRAY_BUFFER, skyboxVBO);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(skyboxVertices), &skyboxVertices, GL_STATIC_DRAW);
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
+
+    // load textures
+    // -------------
+
+    unsigned int cubemapTexture = loadCubemap(faces);
+    return std::make_pair(skyboxVAO,cubemapTexture);
 }
 
 
@@ -907,7 +1045,7 @@ void DrawImGui(ProgramState *programState) {
 
             ImGui::Begin("Options");
             ImGui::SliderFloat("Camera speed", &programState->camera.MovementSpeed, 20.0, 40.0);
-            ImGui::SliderFloat("distortion strength", &programState->distortionWater, 0.01, 0.05);
+            ImGui::SliderFloat("Water distortion", &programState->distortionWater, 0.01, 0.05);
 //            ImGui::ColorEdit3("Background color", (float *) &programState->clearColor);
             ImGui::Checkbox("Specular water", &programState->waterSpecular);
             ImGui::SameLine();
@@ -919,9 +1057,10 @@ void DrawImGui(ProgramState *programState) {
             ImGui::Checkbox("Wireframe draw", &programState->wireFrameOption);
             ImGui::SameLine();
             ImGui::Checkbox("Coordinate system", &programState->coordinateSystemOption);
-//            ImGui::SliderFloat("gamma", &programState->gamma, 0, 5);
-//            ImGui::SliderFloat("exposure",&programState->exposure,0.0f,2.0f);
-            ImGui::Checkbox("Attenuation settings(test when night)", &programState->attenuationOption);
+            ImGui::SliderFloat("gamma", &programState->gamma, 0, 5);
+            ImGui::SliderFloat("exposure",&programState->exposure,0.0f,2.0f);
+            ImGui::SliderFloat("mix ratio",&programState->mixRatio,0.0f,1.0f);
+            ImGui::Checkbox("Attenuation settings", &programState->attenuationOption);
             ImGui::SameLine();
             ImGui::Checkbox("Reset attattenuation", &programState->resetAttenuation);
             if(programState->attenuationOption){
@@ -1039,4 +1178,76 @@ void renderQuad()
     glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 //    glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT,0);
     glBindVertexArray(0);
+}
+unsigned int loadTexture(char const * path)
+{
+    unsigned int textureID;
+    glGenTextures(1, &textureID);
+
+    int width, height, nrComponents;
+    unsigned char *data = stbi_load(path, &width, &height, &nrComponents, 0);
+    if (data)
+    {
+        GLenum format;
+        if (nrComponents == 1)
+            format = GL_RED;
+        else if (nrComponents == 3)
+            format = GL_RGB;
+        else if (nrComponents == 4)
+            format = GL_RGBA;
+
+        glBindTexture(GL_TEXTURE_2D, textureID);
+        glTexImage2D(GL_TEXTURE_2D, 0, format, width, height, 0, format, GL_UNSIGNED_BYTE, data);
+        glGenerateMipmap(GL_TEXTURE_2D);
+
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+        stbi_image_free(data);
+    }
+    else
+    {
+        std::cout << "Texture failed to load at path: " << path << std::endl;
+        stbi_image_free(data);
+    }
+
+    return textureID;
+}
+unsigned int loadCubemap(vector<std::string> faces)
+{
+    unsigned int textureID;
+    glGenTextures(1, &textureID);
+    glBindTexture(GL_TEXTURE_CUBE_MAP, textureID);
+
+    int width, height, nrComponents;
+    for (unsigned int i = 0; i < faces.size(); i++)
+    {
+        unsigned char *data = stbi_load(faces[i].c_str(), &width, &height, &nrComponents, 0);
+        if (data)
+        {
+            GLenum format;
+            if (nrComponents == 1)
+                format = GL_RED;
+            else if (nrComponents == 3)
+                format = GL_RGB;
+            else if (nrComponents == 4)
+                format = GL_RGBA;
+            glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, format, width, height, 0, format, GL_UNSIGNED_BYTE, data);
+            stbi_image_free(data);
+        }
+        else
+        {
+            std::cout << "Cubemap texture failed to load at path: " << faces[i] << std::endl;
+            stbi_image_free(data);
+        }
+    }
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+
+    return textureID;
 }
