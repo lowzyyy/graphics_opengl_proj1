@@ -97,11 +97,13 @@ struct ProgramState {
     bool ImGuiEnabled = false;
     bool showSmallMaps = false;
     bool wireFrameOption = false;
+    bool additionalOptions = false;
     bool coordinateSystemOption = true;
     bool waterSpecular = false;
     bool prevDayOption = true;
     bool attenuationOption = false;
     bool resetAttenuation = false;
+    bool resetOther = false;
     float distortionWater = 0.02;
     float shininessWater = 512;
     float mixRatio = 0.5;
@@ -470,6 +472,10 @@ int main() {
             setDayNightParameters(skyboxVAO,cubemapTexture,skyboxVAO_day,cubemapTexture_day,skyboxVAO_night,cubemapTexture_night);
             programState->resetAttenuation = false;
         }
+        if(programState->resetOther){
+            setDayNightParameters(skyboxVAO,cubemapTexture,skyboxVAO_day,cubemapTexture_day,skyboxVAO_night,cubemapTexture_night);
+            programState->resetOther = false;
+        }
         //reflection map render
         water_FBO.bindReflectionFrameBuffer();
         waterClipPlane = glm::vec4(0.0,1.0,0.0,-water_height);
@@ -514,12 +520,13 @@ int main() {
 
 
         //render the scene finally
-        //if above water, clip everything under it, else clip everything under ground zero
         glBindFramebuffer(GL_FRAMEBUFFER, hdrFBO);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         glViewport(0, 0, SCR_WIDTH, SCR_HEIGHT);
-        if(programState->wireFrameOption)
+        //if above water, clip everything under it, else clip everything under ground zero
+        if(programState->wireFrameOption) {
             waterClipPlane = glm::vec4(0.0,1.0,0.0,5);
+        }
         else{
             if(programState->camera.Position.y > water_height )
                 waterClipPlane =glm::vec4(0.0,1.0,0.0,-water_height);
@@ -642,6 +649,18 @@ void setDayNightParameters(unsigned int&skyboxVAO,unsigned int&cubemapTexture,un
             programState->pointLight.constant = programState->settings_default.nightConstant;
             programState->pointLight.linear = programState->settings_default.nightLinear;
             programState->pointLight.quadratic = programState->settings_default.nightQuadratic;
+        }
+    }
+    if(programState->resetOther){
+        if(programState->day){
+            programState->gamma = programState->settings_default.dayGamma;
+            programState->exposure = programState->settings_default.dayExposure;
+            programState->mixRatio = programState->settings_default.dayMixRatio;
+        }
+        else{
+            programState->gamma = programState->settings_default.nightGamma;
+            programState->exposure = programState->settings_default.nightExposure;
+            programState->mixRatio = programState->settings_default.nightMixRatio;
         }
     }
     if(programState->day){
@@ -1057,17 +1076,20 @@ void DrawImGui(ProgramState *programState) {
             ImGui::Checkbox("Wireframe draw", &programState->wireFrameOption);
             ImGui::SameLine();
             ImGui::Checkbox("Coordinate system", &programState->coordinateSystemOption);
-            ImGui::SliderFloat("gamma", &programState->gamma, 0, 5);
-            ImGui::SliderFloat("exposure",&programState->exposure,0.0f,2.0f);
-            ImGui::SliderFloat("mix ratio",&programState->mixRatio,0.0f,1.0f);
-            ImGui::Checkbox("Attenuation settings", &programState->attenuationOption);
-            ImGui::SameLine();
-            ImGui::Checkbox("Reset attattenuation", &programState->resetAttenuation);
-            if(programState->attenuationOption){
+            ImGui::Checkbox("Additional settings", &programState->additionalOptions);
+            if(programState->additionalOptions){
+                ImGui::Checkbox("Reset attattenuation", &programState->resetAttenuation);
+                ImGui::SameLine();
+                ImGui::Checkbox("Reset gamma/exp/mix", &programState->resetOther);
+                ImGui::SliderFloat("gamma", &programState->gamma, 0, 5);
+                ImGui::SliderFloat("exposure",&programState->exposure,0.0f,2.0f);
+                ImGui::SliderFloat("mix ratio",&programState->mixRatio,0.0f,1.0f);
                 ImGui::SliderFloat("pointLight.constant", &programState->pointLight.constant,  0.0, 1.0);
                 ImGui::SliderFloat("pointLight.linear", &programState->pointLight.linear, 0.0, 1.0);
                 ImGui::SliderFloat("pointLight.quadratic", &programState->pointLight.quadratic, 0.0, 1.0);
             }
+
+
             ImGui::End();
         }
 
