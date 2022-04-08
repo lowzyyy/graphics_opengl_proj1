@@ -334,7 +334,8 @@ int main() {
 
 
     //fish instanced
-    int fishPerLine = 2;
+    int fishPerLine = 0;
+
     int fish_amount = fishPerLine * fishPerLine;
     glm::mat4* fishModelsInstanced;
     fishModelsInstanced = new glm::mat4[fish_amount];
@@ -948,6 +949,7 @@ void drawInstancedFish(Model model, int fish_amount) {
 }
 
 void createModelsInstancedFish(glm::mat4 *models, int fishPerLine, float ground_zero_height, float water_height) {
+    if(fishPerLine<1) return;
     int step = terrain_length / fishPerLine;
     float step_offset = step/5.0;
     //pick position in every step from current step to next step in offset (not to pick edges of a spawn zone of a fish)
