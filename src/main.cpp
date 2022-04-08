@@ -334,7 +334,7 @@ int main() {
 
 
     //fish instanced
-    int fishPerLine = 0;
+    int fishPerLine = 2;
 
     int fish_amount = fishPerLine * fishPerLine;
     glm::mat4* fishModelsInstanced;
